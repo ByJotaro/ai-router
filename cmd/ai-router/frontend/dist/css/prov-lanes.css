@@ -1,0 +1,29 @@
+/* prov-lanes: тир-лейны вкладки провайдеров (v37-порт).
+   Хедер лейна: точка-индикатор + название + dotted-лидер + пилюля-счётчик.
+   Постоянная рамка/полоса отсутствует — только hover (фон + рамка).
+   Клик/Enter/Space сворачивает лейн. Файл ПОСЛЕ prov-cards.css. */
+#panel-providers #prov-grid{display:block!important}
+#panel-providers .pc-lane-h{display:flex;align-items:center;gap:10px;padding:6px 12px;cursor:pointer;user-select:none;border-radius:10px;transition:background .18s ease,border-color .18s ease;border:1px solid transparent;color:var(--ink)}
+#panel-providers .pc-lane-h .pc-t,#panel-providers .pc-lane-h .pc-n,#panel-providers .pc-lane-h .pc-dot,#panel-providers .pc-lane-h .pc-lead{transition:color .18s ease,background .18s ease,border-color .18s ease,transform .18s ease}
+#panel-providers .pc-lane-h:hover,#panel-providers .pc-lane-h:focus-visible{background:var(--panel-2);border-color:var(--border)}
+#panel-providers .pc-lane-h:hover .pc-dot{transform:scale(1.25)}
+#panel-providers .pc-dot{width:8px;height:8px;flex:none;border-radius:50%;background:var(--accent);transition:background .18s ease,transform .18s ease,border-radius .18s ease,width .18s ease,opacity .18s ease}
+#panel-providers .pc-lane-h:hover .pc-dot{transform:scale(1.35)}
+#panel-providers .pc-sec.collapsed .pc-dot{width:16px;height:4px;border-radius:2px;background:var(--danger);transform:none}
+#panel-providers .pc-lane{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))!important;grid-auto-rows:max-content;justify-content:start;gap:8px!important;padding:10px 0 14px;align-items:start;align-content:start;overflow:visible;opacity:1;transition:opacity 220ms ease,padding 220ms ease,visibility 0s}
+#panel-providers .pc-lane>.prov-card{display:block;width:auto;min-width:0;max-width:none;margin:0;align-self:start}
+#panel-providers .pc-sec{overflow:visible;display:block!important;width:100%!important;max-width:100%!important}
+#panel-providers .pc-sec.collapsed{display:block}
+#panel-providers .pc-sec.collapsed .pc-lane{opacity:0;padding-top:0!important;padding-bottom:0!important;transform:scaleY(.98);pointer-events:none;overflow:hidden;visibility:hidden;min-height:0;max-height:0}
+#panel-providers .pc-sec.collapsed .pc-lane>*{overflow:hidden;min-height:0;visibility:hidden}
+#panel-providers .pc-sec .pc-lane>*{min-height:0}
+#panel-providers .pc-dot.on{background:var(--ok)}
+#panel-providers .pc-dot.warn{background:var(--warn)}
+#panel-providers .pc-dot.err{background:var(--danger)}
+#panel-providers .pc-dot.neutral{background:var(--muted);opacity:.55}
+#panel-providers .pc-sec.collapsed .pc-dot.neutral{background:var(--muted);opacity:.55}
+#panel-providers .pc-t{font-family:var(--serif);font-size:var(--fs-lg);color:var(--ink);white-space:nowrap}
+#panel-providers .pc-lead{flex:1 1 auto;min-width:24px;border-bottom:1px dotted var(--border-2)}
+#panel-providers .pc-n{flex:none;font:600 12px/1.6 var(--mono);color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;background:var(--panel-2);border:1px solid var(--border-2);border-radius:20px;padding:2px 12px}
+#panel-providers .pc-n .dim{color:var(--muted);font-weight:400}
+#panel-providers .pc-lane details.prov-catalog{margin:0;padding:6px 8px;font-size:var(--fs-3xs)}

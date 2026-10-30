@@ -1,0 +1,108 @@
+/* Единственная липкая строка панели «Журналы».
+   Перенесена из варианта 3 (плотная таблица): сегмент ветки, поиск, чипы уровней,
+   «окно», пауза, экспорт/очистить — всё в одну строку. Остальная панель без изменений. */
+
+/* ── плотность панели ─────────────────────────────────────────────────────────
+   1) Пустота под шапкой панели: было 16 (gap панели) + 16 (padding-top обёртки)
+      = 32 px. Теперь 0: строка управления примыкает прямо к линии шапки. */
+#panel-logs{--lg-bar-h:39px; gap:0}
+#panel-logs > .w01-wrap{padding-top:0}
+
+/* 2) Две полосы над графиком, в 9 px друг от друга: подчёркивание заголовка
+      «ЛЕНТА ЗАПРОСОВ» (.sec-t border-bottom) и border-top самого .w01-ribbox.
+      Оставляем одну — подчёркивание заголовка, перед шапкой таблицы 8 px воздуха.
+      Плашка шапки таблицы остаётся штатной (--panel-2). */
+#panel-logs .w01-ribbox{border-top:0; padding-top:6px; padding-bottom:8px}
+/* Шапка таблицы: без плашки — фон тот же, что у страницы (как на главной);
+   текст как у заголовков секций (.sec-t → --ink2). Фон непрозрачный и равен
+   панели, чтобы при липком поведении строки не просвечивали сквозь буквы.
+   top сдвинут на высоту строки: иначе шапка пряталась ПОД ней (z-index 9). */
+#panel-logs .w01-tbl thead th{background:var(--paper); color:var(--ink2); top:var(--lg-bar-h)}
+
+#panel-logs .lg-tools{
+  position: sticky; top: 0; z-index: 9;
+  display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+  min-height: 37px; margin: 0 -20px; padding: 5px 20px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+#panel-logs .lg-sp{flex:1 1 auto; min-width:4px}
+
+/* ветка журнала */
+#panel-logs .lg-seg{display:inline-flex; align-items:center; gap:2px; padding:2px;
+  border:1px solid var(--rule); border-radius:6px; background:var(--canvas); flex:none}
+#panel-logs .lg-seg button{
+  height:22px; padding:0 9px; border:0; border-radius:4px; background:transparent;
+  color:var(--muted); font:10.5px/22px var(--mono); letter-spacing:.05em;
+  text-transform:uppercase; cursor:pointer; white-space:nowrap;
+}
+#panel-logs .lg-seg button:hover{color:var(--ink)}
+#panel-logs .lg-seg button.on{background:var(--panel-3); color:var(--ink)}
+
+/* поиск */
+#panel-logs .lg-search{
+  position:relative; display:flex; align-items:center;
+  flex:1 1 320px; max-width:420px; min-width:170px; height:26px;
+  border:1px solid var(--rule); border-radius:6px; background:var(--canvas);
+}
+#panel-logs .lg-search:focus-within{border-color:var(--accent)}
+#panel-logs .lg-search .lg-slash{
+  flex:none; display:inline-flex; align-items:center; justify-content:center;
+  width:14px; height:14px; margin-left:6px; border:1px solid var(--border-2); border-radius:3px;
+  color:var(--faint); font:9.5px/1 var(--mono);
+}
+#panel-logs .lg-search input,
+#panel-logs .lg-search input:focus,
+#panel-logs .lg-search input:focus-visible{
+  flex:1 1 auto; min-width:0; height:24px; padding:0 6px;
+  border:0; background:transparent; color:var(--ink);
+  font:11.5px var(--mono); outline:none; box-shadow:none;
+}
+#panel-logs .lg-search input::placeholder{color:var(--faint)}
+#panel-logs .lg-search input::-webkit-search-cancel-button{-webkit-appearance:none; appearance:none}
+#panel-logs .lg-search .lg-x{
+  flex:none; width:20px; height:20px; margin-right:3px; padding:0;
+  border:0; border-radius:3px; background:transparent;
+  color:var(--faint); font:11px/1 var(--mono); cursor:pointer;
+}
+#panel-logs .lg-search .lg-x:hover{color:var(--accent); background:var(--panel-2)}
+#panel-logs .lg-search .lg-x[hidden]{display:none}
+
+/* чипы уровней */
+#panel-logs .lg-lv{display:inline-flex; align-items:center; gap:4px; flex:none}
+#panel-logs .lg-lv .chip{
+  display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 8px;
+  border:1px solid var(--rule); border-radius:5px; background:transparent;
+  color:var(--muted); font:10.5px/1 var(--mono); letter-spacing:.04em;
+  cursor:pointer; white-space:nowrap;
+}
+#panel-logs .lg-lv .chip:hover{color:var(--ink); border-color:var(--border-2)}
+#panel-logs .lg-lv .chip b{font-weight:400; color:var(--faint); font-variant-numeric:tabular-nums}
+#panel-logs .lg-lv .chip.on{color:var(--ink2); border-color:var(--border-2); background:var(--panel-2)}
+#panel-logs .lg-lv .chip.on b{color:var(--ink)}
+#panel-logs .lg-lv .chip[hidden]{display:none}
+#panel-logs .lg-dot{width:5px; height:5px; border-radius:50%; flex:none; background:transparent; box-shadow:inset 0 0 0 1px var(--faint)}
+#panel-logs .lg-lv .chip.on .lg-dot.i{background:var(--ok); box-shadow:none}
+#panel-logs .lg-lv .chip.on .lg-dot.w{background:var(--warn); box-shadow:none}
+#panel-logs .lg-lv .chip.on .lg-dot.e{background:var(--danger); box-shadow:none}
+
+/* «окно» (появляется, когда выбран интервал ленты) */
+#panel-logs .lg-focus{
+  flex:none; height:24px; padding:0 9px; border:1px solid var(--accent); border-radius:5px;
+  background:var(--accent-dim); color:var(--ink); font:10.5px/1 var(--mono);
+  letter-spacing:.04em; cursor:pointer; white-space:nowrap;
+}
+#panel-logs .lg-focus[hidden]{display:none}
+
+/* пауза чтения */
+#panel-logs .lg-pause{
+  flex:none; font:10px var(--mono); color:var(--warn); letter-spacing:.04em;
+  white-space:nowrap; cursor:pointer;
+}
+#panel-logs .lg-pause[hidden]{display:none}
+
+/* кнопки строки плотнее штатных .btn.sm */
+#panel-logs .lg-tools .btn{
+  min-height:24px; height:24px; padding:0 10px; border-radius:5px;
+  font:10.5px/1 var(--mono); letter-spacing:.04em; flex:none;
+}

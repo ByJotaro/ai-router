@@ -1,0 +1,77 @@
+/* ==================================================================
+   w01 «ПОЛОТНО» · «Настройки»
+   Полотно шкал: сплошные линии значений, тянущиеся указателем, строка
+   чисел над каждой линией, путь ключа под ней. Плюс лестница уровней,
+   лента модулей и нити строк/перечислений.
+   ================================================================== */
+
+.w01-cfbar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.w01-cfbar .spacer { flex: 1; }
+
+/* ---------- лента модулей ---------- */
+.w01-modband { display: flex; gap: 6px; width: 100%; }
+.w01-mod { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 10px; }
+.w01-mod:hover { border-color: var(--border-2); background: var(--hover); }
+.w01-mod-t { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.6px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w01-mod-s { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; }
+.w01-mod-d { font-size: 10px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w01-mod-on { box-shadow: inset 0 -2px 0 var(--ok); }
+.w01-mod-on .w01-mod-s { color: var(--ok); }
+.w01-mod-off { box-shadow: inset 0 -2px 0 var(--border-2); }
+.w01-mod-off .w01-mod-s { color: var(--muted); }
+
+/* ---------- шкалы чисел ---------- */
+.w01-scales { display: flex; flex-direction: column; gap: 14px; }
+.w01-scale { display: flex; flex-direction: column; gap: 3px; padding: 2px 0 0; }
+.w01-scale-h { display: flex; align-items: baseline; gap: 10px; }
+.w01-scale-l { font-size: var(--fs-2xs); color: var(--ink2); }
+.w01-scale-u { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+.w01-scale-v { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-md); color: var(--ink); }
+.w01-track { position: relative; height: 16px; width: 100%; cursor: ew-resize; touch-action: none; }
+.w01-track:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+.w01-track-g { position: absolute; left: 0; right: 0; top: 7px; height: 1px; background: var(--rule); }
+.w01-track-fill { position: absolute; left: 0; top: 5px; height: 5px; border-radius: 3px; background: var(--accent); opacity: 0.85; }
+.w01-track-knob { position: absolute; top: 6px; width: 2px; height: 9px; background: var(--accent);
+  transform: translateX(-1px); box-shadow: 0 0 8px var(--accent-dim); }
+.w01-scale-f { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.w01-scale-p { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.w01-scale-dirty .w01-scale-v { color: var(--accent); }
+.w01-scale-dirty .w01-track-fill { background: var(--accent); opacity: 1; }
+.w01-scale-dirty .w01-scale-p { color: var(--accent); }
+
+/* ---------- лестница уровней ---------- */
+.w01-lad { display: flex; align-items: center; gap: 9px; padding: 5px 0 5px 0; }
+.w01-lad-n { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 16px; text-align: right; }
+.w01-lad-t { font-family: var(--mono); font-size: var(--fs-xs); color: var(--ink); min-width: 110px; }
+.w01-lad-l { flex: 1; height: 1px; background: var(--rule); }
+.w01-lad-d { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); }
+.w01-lad-b { font-family: var(--mono); font-size: 10px; color: var(--ink2); background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 3px 8px; cursor: pointer; }
+.w01-lad-b:hover { color: var(--ink); background: var(--hover); }
+.w01-lad-b[disabled] { opacity: 0.35; cursor: default; }
+
+/* ---------- нити строк и перечислений ---------- */
+.w01-nrows { display: flex; flex-direction: column; }
+.w01-nrow { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--rule); }
+.w01-nrow-l { font-size: var(--fs-2xs); color: var(--ink2); flex: 0 1 auto; min-width: 190px; }
+.w01-nrow-p { font-family: var(--mono); font-size: 9.5px; color: var(--faint); margin-left: auto; }
+.w01-inp { font: var(--fs-xs) var(--mono); color: var(--ink); background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 6px 9px; min-width: 220px; }
+.w01-inp:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.w01-sel { min-width: 180px; cursor: pointer; }
+.w01-eye { font-family: var(--mono); font-size: 10px; color: var(--muted); background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 4px 8px; cursor: pointer; }
+.w01-eye:hover { color: var(--ink); }
+
+/* ---------- переключатели ---------- */
+.w01-sw { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid var(--border);
+  border-radius: 999px; padding: 4px 10px 4px 4px; cursor: pointer; }
+.w01-sw-t { position: relative; width: 30px; height: 16px; border-radius: 999px; background: var(--panel-3); border: 1px solid var(--border); }
+.w01-sw-t::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted); transition: left var(--tr), background var(--tr); }
+.w01-sw-x { font-family: var(--mono); font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); }
+.w01-sw-on { border-color: var(--accent-dim); }
+.w01-sw-on .w01-sw-t { background: var(--accent-dim); }
+.w01-sw-on .w01-sw-t::after { left: 16px; background: var(--accent); }
+.w01-sw-on .w01-sw-x { color: var(--accent); }

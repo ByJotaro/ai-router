@@ -1,0 +1,78 @@
+/* ==================================================================
+   w01 «ПОЛОТНО» · общая база четырёх вкладок
+   Только var(--…) из tokens.css, только классы с префиксом w01-.
+   ================================================================== */
+
+#panel-usage.tab-panel.active,
+#panel-logs.tab-panel.active,
+#panel-proxies.tab-panel.active,
+#panel-settings.tab-panel.active { padding: 0; }
+
+.w01-wrap { display: flex; flex-direction: column; gap: var(--sec-gap); padding: 16px 20px 28px; }
+.w01-block { display: flex; flex-direction: column; gap: 10px; }
+.w01-rowblock { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ---------- строка чисел над линией ---------- */
+.w01-nums { display: flex; flex-wrap: wrap; gap: 3px 18px; align-items: baseline; }
+.w01-num { display: flex; align-items: baseline; gap: 6px; }
+.w01-num b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 500; color: var(--ink); letter-spacing: -0.2px; }
+.w01-num i { font-style: normal; font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); }
+.w01-num.w01-hi b { color: var(--accent); }
+.w01-num.w01-okc b { color: var(--ok); }
+.w01-num.w01-warnc b { color: var(--warn); }
+.w01-num.w01-bad b { color: var(--danger); }
+
+/* ---------- секции и пояснения ---------- */
+.w01-sh { display: flex; align-items: baseline; gap: 12px; margin-top: 6px; }
+.w01-sh-t { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink2); }
+.w01-sh-r { flex: 1; height: 1px; background: var(--rule); }
+.w01-note, .w01-flat { font-size: var(--fs-2xs); color: var(--faint); line-height: 1.6; }
+.w01-note { color: var(--muted); }
+.w01-empty-line { padding: 12px 0; font-size: var(--fs-xs); color: var(--muted); }
+
+/* ---------- состояния ---------- */
+.w01-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 34px 20px; color: var(--muted); }
+.w01-state[hidden] { display: none; }
+.w01-state .state, .w01-state > .state { padding: 0; }
+.w01-flash { outline: 1px solid var(--accent); outline-offset: 3px; border-radius: var(--r-sm); }
+
+/* ---------- svg-полотно: оси, сетка, подписи ---------- */
+.w01-grid { stroke: var(--rule); stroke-width: 1; shape-rendering: crispEdges; }
+.w01-ax { fill: var(--muted); font-family: var(--mono); font-size: 9.5px; }
+.w01-ax-dim { fill: var(--faint); }
+.w01-ax-act { fill: var(--accent); font-family: var(--mono); font-size: 10px; letter-spacing: 0.6px; }
+.w01-unit { fill: var(--faint); font-family: var(--mono); font-size: 9.5px; letter-spacing: 1px; }
+.w01-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.w01-hit { fill: transparent; }
+.w01-hit:hover { fill: var(--hover); }
+.w01-hit-focus { fill: var(--hover); stroke: var(--accent-dim); stroke-width: 1; }
+.w01-hit-on { fill: var(--hover); }
+.w01-hovline { stroke: var(--accent-dim); stroke-width: 1; stroke-dasharray: 2 3; }
+
+/* ---------- тултип ---------- */
+.w01-tip { position: fixed; z-index: 60; display: none; max-width: 330px; padding: 8px 10px; pointer-events: none;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow);
+  font-size: var(--fs-2xs); color: var(--ink); }
+.w01-tip-d { font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.w01-tip-t { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 500; color: var(--ink); margin-bottom: 5px; }
+.w01-tip-r { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 1px 0; }
+.w01-tip-k { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; }
+.w01-tip-v { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.w01-tip-b { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--rule); color: var(--faint); font-size: 10.5px; line-height: 1.45; }
+
+/* ---------- строки модалки записи ---------- */
+.w01-md { display: flex; flex-direction: column; gap: 2px; }
+.w01-mdrow { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 5px 0; border-bottom: 1px solid var(--rule); }
+.w01-mdk { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.w01-mdv { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; word-break: break-word; }
+.w01-numc { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- кнопки-нити (мелкие действия внутри полотна) ---------- */
+.w01-btn { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.6px; color: var(--ink2); background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px 8px; cursor: pointer; }
+.w01-btn:hover { color: var(--ink); border-color: var(--border-2); background: var(--hover); }
+.w01-btn[disabled] { opacity: 0.4; cursor: default; }
+.w01-chip { font-family: var(--mono); font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; }
+.w01-chip.w01-okc { color: var(--ok); border-color: var(--ok); }
+.w01-chip.w01-warnc { color: var(--warn); border-color: var(--warn); }

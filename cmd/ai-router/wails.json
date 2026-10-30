@@ -1,0 +1,25 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "ai-router",
+  "outputfilename": "ai-router.exe",
+  "frontend:install": "",
+  "frontend:build": "echo skip frontend build",
+  "frontend:dir": "frontend",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "jotaro",
+    "email": ""
+  },
+  "info": {
+    "companyName": "jotaro",
+    "productName": "ai-router",
+    "productVersion": "0.1.0",
+    "copyright": "jotaro",
+    "comments": "ai-router gateway + panel"
+  },
+  "build": {
+    "frontendDir": "frontend",
+    "targets": ["windows/amd64"]
+  }
+}

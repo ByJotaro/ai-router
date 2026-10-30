@@ -1,0 +1,370 @@
+/* Providers в стиле главной (w08v6d-канон): бумага/карточки/чернила/янтарь.
+   Скоуп СТРОГО #panel-providers. Только ember + home-канон vars.
+   Покрывает: тулбар (поиск/сорт/+Провайдер), фильтры-пилюли,
+   карточки prov-grid, скелетоны, empty, каталог, detail-hero/backbar. */
+#panel-providers{background:var(--paper);color:var(--ink);font:14px/1.45 var(--serif);max-width:1600px;margin:0 auto;width:100%}
+/* ---------- тулбар ---------- */
+#panel-providers .prov-toolbar{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:var(--card-p)}
+#panel-providers .prov-tools{display:flex;align-items:center;gap:var(--sec-gap);flex-wrap:wrap}
+#panel-providers .prov-tools .search-wrap{position:relative;flex:1 1 220px;min-width:0}
+#panel-providers .prov-tools .input{background:var(--canvas);border:1px solid var(--rule);border-radius:20px;color:var(--ink);font:12px var(--mono);padding:6px 30px 6px 12px;width:100%}
+#panel-providers .prov-tools .input::placeholder{color:var(--ink2);opacity:.8}
+#panel-providers .prov-tools .input:focus{outline:1px solid var(--amber);outline-offset:-1px;border-color:var(--amber)}
+#panel-providers .prov-tools select.input{flex:0 0 auto;padding-right:8px;font:11px var(--mono);color:var(--ink2)}
+#panel-providers .prov-tools select.input option{background:var(--card);color:var(--ink)}
+#panel-providers .prov-x{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--ink2);cursor:pointer;font:11px var(--mono);padding:2px 6px;border-radius:50%}
+#panel-providers .prov-x:hover{color:var(--amber);background:var(--hover)}
+/* #prov-add: визуал из shell .btn--pill.btn.primary; здесь только layout. */
+#panel-providers #prov-add{letter-spacing:1px;text-transform:uppercase;white-space:nowrap}
+/* ---------- фильтры-пилюли ---------- */
+#panel-providers .prov-filters{display:flex;gap:0;margin-top:var(--sec-gap);border:1px solid var(--rule);border-radius:20px;overflow:hidden;width:max-content;max-width:100%;flex-wrap:nowrap}
+#panel-providers .prov-filters .btn{font:11px var(--mono);letter-spacing:1px;text-transform:uppercase;background:transparent;color:var(--ink2);border:0;border-right:1px solid var(--rule);padding:6px 14px;cursor:pointer;white-space:nowrap}
+#panel-providers .prov-filters .btn:last-child{border-right:0}
+#panel-providers .prov-filters .btn:hover{color:var(--ink);background:var(--hover)}
+#panel-providers .prov-filters .btn.active,#panel-providers .prov-filters .btn[aria-pressed="true"]{background:var(--amber);color:var(--accent-ink);font-weight:bold}
+#panel-providers .prov-filters .btn:focus-visible{outline:1px solid var(--amber);outline-offset:-1px}
+#panel-providers .prov-filters .fc{font-variant-numeric:tabular-nums;opacity:.85}
+#panel-providers #prov-result{font:11px var(--mono);color:var(--ink2)}
+/* #prov-clear: визуал из shell .btn--pill; здесь только layout (margin). */
+#panel-providers #prov-clear{margin-left:4px}
+/* ---------- сетка карточек ---------- */
+#panel-providers .prov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--sec-gap);margin-top:var(--sec-gap)}
+#panel-providers .prov-card{position:relative;background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:var(--card-p);box-shadow:var(--shadow);cursor:pointer;overflow:hidden}
+#panel-providers .prov-card:hover{border-color:var(--amber);background:var(--hover)}
+#panel-providers .prov-card:focus-visible{outline:1px solid var(--amber);outline-offset:2px}
+#panel-providers .prov-card::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--ink2);opacity:.5}
+#panel-providers .prov-card[data-st="on"]::before{background:var(--ok);opacity:1}
+#panel-providers .prov-card[data-st="warn"]::before{background:var(--warn);opacity:1}
+#panel-providers .prov-card[data-st="err"]::before{background:var(--danger);opacity:1}
+#panel-providers .prov-card[data-st="off"]::before{background:var(--ink2);opacity:.5}
+#panel-providers .gc-top{display:flex;align-items:flex-start;gap:var(--sec-gap)}
+#panel-providers .gc-ico,#panel-providers .pc-ico{width:42px;height:42px;flex:none;border-radius:12px;background:var(--canvas);border:1px solid var(--rule);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--amber)}
+#panel-providers .gc-tit{flex:1;min-width:0}
+#panel-providers .gc-name{color:var(--ink);font-size:17px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-providers .gc-name em{font-style:italic;color:var(--amber)}
+#panel-providers .gc-sub{font:11px var(--mono);color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* providers badge/chip: визуал из shell .badge/.chip; panel-уникум — flex:none layout. */
+#panel-providers .badge{flex:none}
+/* ---------- спарклайн и здоровье ---------- */
+#panel-providers .gc-tok{display:flex;align-items:center;gap:var(--sec-gap);margin-top:var(--sec-gap);min-height:34px}
+#panel-providers .tok-lbl{font:10.5px var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2);flex:none;line-height:24px}
+#panel-providers .gc-tok canvas{display:block;flex:1;min-width:0;height:24px}
+#panel-providers .gc-health{display:flex;align-items:center;gap:var(--sec-gap);margin-top:var(--sec-gap);min-height:20px}
+#panel-providers .progress.thin{flex:1;height:5px;border-radius:20px;overflow:hidden;background:var(--canvas);border:1px solid var(--rule)}
+#panel-providers .progress.thin .bar{display:block;height:100%;background:var(--barfill)}
+#panel-providers .progress.thin .bar.warn{background:var(--warn)}
+#panel-providers .progress.thin .bar.danger{background:var(--danger)}
+#panel-providers .gc-pct{font:12px var(--mono);color:var(--ink2);flex:none;min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+/* ---------- каталог ненастроенных ---------- */
+#panel-providers .prov-catalog{grid-column:1/-1;background:var(--card);border:1px dashed var(--rule);border-radius:var(--r-lg);padding:8px 14px}
+#panel-providers .prov-catalog>summary{display:flex;align-items:center;gap:8px;cursor:pointer;font:11px var(--mono);letter-spacing:1px;text-transform:uppercase;color:var(--ink2);list-style:none}
+#panel-providers .prov-catalog>summary:hover{color:var(--amber)}
+#panel-providers .prov-catalog>summary .arr{color:var(--amber)}
+#panel-providers .prov-catalog>summary .hint{margin-left:auto;font:11px var(--mono);color:var(--ink2);text-transform:none;letter-spacing:0}
+#panel-providers .prov-cat-list{display:flex;flex-wrap:wrap;gap:calc(var(--sec-gap) - 4px);padding:var(--sec-gap) 0 4px}
+#panel-providers .prov-cat-item{display:inline-flex;align-items:center;gap:6px;max-width:100%;font:11px var(--mono);color:var(--ink2);background:var(--canvas);border:1px solid var(--rule);border-radius:20px;padding:4px 12px;cursor:pointer}
+#panel-providers .prov-cat-item:hover{color:var(--amber);border-color:var(--amber);background:var(--hover)}
+#panel-providers .prov-cat-item .hint{font-size:11px;color:var(--ink2);opacity:.75}
+/* ---------- скелетоны ---------- */
+#panel-providers .skeleton{background:var(--canvas);border:1px solid var(--rule);border-radius:6px;animation:prov-pulse 1.4s ease-in-out infinite}
+@keyframes prov-pulse{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){#panel-providers .skeleton{animation:none}}
+/* ---------- empty ---------- */
+#panel-providers .state.empty{display:flex;flex-direction:column;align-items:center;gap:var(--sec-gap);padding:36px var(--sec-x);text-align:center;background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);margin-top:var(--sec-gap)}
+#panel-providers .state.empty .big{font-size:32px;line-height:1;color:var(--amber)}
+#panel-providers .state.empty .title{font-size:20px;color:var(--ink)}
+#panel-providers .state.empty .hint{font:11px var(--mono);color:var(--ink2)}
+/* #empty-add: визуал из shell .btn--pill.btn.primary. */
+/* ---------- detail: назад и hero ---------- */
+#panel-providers .backbar{display:flex;align-items:center;gap:var(--sec-gap);margin-bottom:4px}
+#panel-providers .backbar .icon-btn{background:var(--canvas);color:var(--ink2);border:1px solid var(--rule);border-radius:20px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px}
+#panel-providers .backbar .icon-btn:hover{color:var(--amber);border-color:var(--amber);background:var(--hover)}
+#panel-providers .backbar h1{font-size:22px;line-height:1.15;letter-spacing:.5px;color:var(--ink);font-weight:normal;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-providers .backbar h1 em{font-style:italic;color:var(--amber)}
+#panel-providers .backbar .breadcrumb{font:11px var(--mono);letter-spacing:3px;text-transform:uppercase;color:var(--brand);display:block}
+#panel-providers .detail-hero,#panel-providers #pd-hero{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:var(--card-p)}
+#panel-providers .detail-hero .state,#panel-providers #pd-hero .state{padding:24px 12px}
+#panel-providers .detail-hero .big,#panel-providers #pd-hero .big{color:var(--amber)}
+#panel-providers .detail-hero .title,#panel-providers #pd-hero .title{color:var(--ink)}
+#panel-providers .epline-sub{font:11px var(--mono);color:var(--ink2)}
+@media(max-width:640px){#panel-providers .prov-tools .input{font-size:12px}#panel-providers .prov-filters{width:100%;overflow-x:auto}#panel-providers .prov-filters .btn{flex:1 0 auto}#panel-providers .prov-grid{grid-template-columns:1fr}}
+/* Combos + Usage — темизация под главную (w08v6d-канон).
+   Скоуп СТРОГО #panel-combos / #panel-usage. Только vars ember + home-канон.
+
+/* ---- общий фон панелей: бумага главной ---- */
+#panel-combos,#panel-usage{background:var(--paper);color:var(--ink);font:14px/1.45 var(--serif)}
+
+/* ============ COMBOS ============ */
+/* верхняя полоса: шапка как .hd главной — одна строка, янтарный акцент */
+#panel-combos .combo-top{display:flex;align-items:center;gap:16px;padding:var(--sec-y) var(--sec-x);border-bottom:2px solid var(--rule);background:var(--card);border-radius:var(--r-lg) var(--r-lg) 0 0;flex-wrap:nowrap}
+#panel-combos .combo-top-txt{min-width:0;flex:1 1 auto}
+#panel-combos .combo-top-txt h3{font-size:22px;line-height:1.15;letter-spacing:.5px;color:var(--ink);font-weight:normal;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-combos .combo-top-txt .hint{display:block;font:11px var(--mono);color:var(--ink2);letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-combos .combo-top .spacer{flex:1 1 auto}
+/* combo-top primary: визуал из shell .btn--pill.btn.primary; здесь только layout. */
+#panel-combos .combo-top .btn.primary{letter-spacing:1px;white-space:nowrap}
+#panel-combos.tab-panel.active{gap:0}
+
+/* список пресетов: карточки как .kpi главной */
+#panel-combos #combo-list{display:flex;flex-direction:column;gap:var(--sec-gap);padding:var(--sec-y) var(--sec-x)}
+#panel-combos #combo-list .combo-card,
+#panel-combos #combo-list .card{border:1px solid var(--rule);background:var(--card);border-radius:var(--r-lg);padding:var(--card-p);font-family:var(--mono);box-shadow:var(--shadow)}
+#panel-combos #combo-list .combo-card:hover,
+#panel-combos #combo-list .card:hover{background:var(--hover)}
+#panel-combos #combo-list .combo-name{color:var(--ink);font-size:15px;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-combos #combo-list .combo-meta,
+#panel-combos #combo-list .hint{color:var(--ink2);font-size:11px}
+
+/* шаги каскада слева направо: моно-пилюли + янтарная стрелка перехода */
+#panel-combos .combo-steps{display:flex;align-items:center;gap:var(--sec-gap);flex-wrap:wrap;margin-top:var(--sec-gap)}
+#panel-combos .combo-step{font:11px var(--mono);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:20px;padding:4px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+#panel-combos .combo-step.active{border-color:var(--amber);color:var(--amber)}
+#panel-combos .combo-steps .step-arrow,
+#panel-combos .combo-steps .arrow{color:var(--amber);font-family:var(--mono)}
+#panel-combos .combo-step .step-del{background:transparent;border:0;color:var(--ink2);cursor:pointer;font:11px var(--mono)}
+#panel-combos .combo-step .step-del:hover{color:var(--brand)}
+
+/* кнопки внутри карточек: моно, янтарный primary, красный danger */
+/* combo-кнопки: визуал из shell .btn--pill(.primary/.danger); scoped layout ниже. */
+#panel-combos #combo-list .btn{margin:2px 4px 2px 0}
+
+/* редактор пресета */
+#panel-combos #combo-editor{padding:0 var(--sec-x) var(--sec-y)}
+#panel-combos #combo-editor .card,
+#panel-combos #combo-editor .combo-editor{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:var(--card-p);color:var(--ink)}
+#panel-combos #combo-editor h4{font-weight:normal;font-size:18px;color:var(--ink);margin:0 0 8px}
+#panel-combos #combo-editor h4 em{font-style:italic;color:var(--amber)}
+#panel-combos #combo-editor label{font:11px var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2)}
+#panel-combos #combo-editor .input,
+#panel-combos #combo-editor select,
+#panel-combos #combo-editor input[type="text"]{font:13px var(--mono);background:var(--canvas);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:6px 10px}
+#panel-combos #combo-editor .input:focus,
+#panel-combos #combo-editor select:focus,
+#panel-combos #combo-editor input[type="text"]:focus{outline:1px solid var(--amber);outline-offset:-1px;border-color:var(--amber)}
+
+/* пустое состояние */
+#panel-combos .state.empty{margin:var(--sec-y) var(--sec-x);border:1px dashed var(--rule);border-radius:var(--r-lg);background:var(--card);padding:var(--g50-sp-6);text-align:center}
+#panel-combos .state.empty .title{font-size:18px;color:var(--ink)}
+#panel-combos .state.empty .hint{font:11px var(--mono);color:var(--ink2)}
+/* combo-empty primary: визуал из shell .btn--pill.btn.primary. */
+
+/* ============ USAGE ============ */
+/* карточка-секция как панели главной */
+#panel-usage .card.section{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:var(--card-p);box-shadow:var(--shadow)}
+/* (usage head: разметка переехала в .chart-bar — канон ниже в ритм-блоке 457-458). */
+
+/* сегсвитчи Тренд/Календарь + Токены/Запросы/Стоимость — как .themes главной */
+/* usage segswitch: визуал из shell .segswitch; здесь только layout. */
+#panel-usage .segswitch{margin:0}
+
+/* календарь */
+#panel-usage #usage-cal{padding:8px 0}
+#panel-usage #usage-cal .cal-day{font:11px var(--mono);background:var(--canvas);border:1px solid var(--rule);border-radius:8px;color:var(--ink2)}
+#panel-usage #usage-cal .cal-day.hot{background:var(--hover);border-color:var(--amber);color:var(--ink)}
+
+/* график — как главная: SVG-линия drawEmberLine (264px, холст, тултип) */
+#panel-usage .chart-box{background:var(--canvas);border:1px solid var(--rule);border-radius:var(--r-lg);padding:var(--card-p);margin-top:var(--sec-gap)}
+#panel-usage .chart-box.usage-ember{background:transparent;border:0;padding:0;margin-top:var(--sec-gap)}
+#panel-usage #usage-chart{width:100%;height:264px;display:block;background:var(--canvas);border:1px solid var(--rule);border-radius:12px;cursor:crosshair;overflow:hidden}
+/* hl-стили — из shell .hl-* канона; svg-layout ниже. */
+#panel-usage #usage-svg{display:block;width:100%;height:264px}
+/* usage-tip: визуал из shell .tip; здесь только layout (fixed/width). */
+#panel-usage #usage-tip{position:fixed;width:238px;display:none;z-index:60}
+#panel-usage #usage-legend{display:flex;gap:12px;font:10.5px var(--mono);color:var(--ink2);margin-top:6px;flex-wrap:wrap}
+#panel-usage #usage-legend span{display:flex;align-items:center;gap:4px}
+#panel-usage .chart-legend{display:flex;gap:12px;font:10.5px var(--mono);color:var(--ink2);margin-top:6px;flex-wrap:wrap}
+#panel-usage .chart-legend .lg-item{display:flex;align-items:center;gap:4px}
+#panel-usage .chart-legend .lg i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:6px}
+
+/* KPI-плитки как .kpi главной (без левой полосы, label 10.5, val 26) */
+/* usage kpi: визуал из shell .kpi; scoped layout — без полосы. */
+#panel-usage #usage-kpis .kpi::before{content:none;display:none}
+/* logs.css — Журналы в стиле главной w08v6d: скоуп СТРОГО #panel-logs, только var() + mono/serif */
+#panel-logs{background:var(--paper);color:var(--ink);font:14px/1.45 var(--serif)}
+#panel-logs .card.section{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:14px 20px;overflow:hidden}
+/* logs card-head: визуал из shell .card-head/.btn--pill.btn.sm; здесь только panel-layout. */
+#panel-logs .card-head{align-items:center}
+#panel-logs .card-head .btn.sm{margin-left:4px}
+#panel-logs #log-export{color:var(--ink)}
+#panel-logs #log-clear.danger{color:var(--danger);border-color:var(--rule)}
+#panel-logs #log-clear.danger:hover{background:var(--danger-dim);border-color:var(--danger);color:var(--ink)}
+/* --- log-toolbar: поиск + segswitch Запросы/Прокси --- */
+#panel-logs .log-toolbar{display:flex;gap:var(--sec-gap);flex-wrap:wrap;align-items:center}
+#panel-logs .log-toolbar .search-wrap{display:flex;align-items:center;gap:var(--sec-gap)}
+#panel-logs .log-toolbar .input{font:12px var(--mono);background:var(--canvas);color:var(--ink);border:1px solid var(--rule);border-radius:20px;padding:7px 12px;width:100%}
+#panel-logs .log-toolbar .input::placeholder{color:var(--faint)}
+#panel-logs .log-toolbar .input:focus{outline:1px solid var(--amber);outline-offset:-1px;border-color:var(--amber)}
+/* logs segswitch: визуал из shell .segswitch; здесь только layout. */
+#panel-logs .segswitch{margin:0}
+/* --- log-subbar: tag-row + lvchips --- */
+#panel-logs .log-subbar{display:flex;gap:var(--sec-gap);margin:var(--sec-gap) 0;flex-wrap:wrap;align-items:center;justify-content:space-between}
+#panel-logs .tag-row{display:flex;gap:calc(var(--sec-gap) - 4px);flex-wrap:wrap;align-items:center}
+#panel-logs .tag-row .tag{font:11px var(--mono);color:var(--ink2);background:var(--canvas);border:1px solid var(--rule);border-radius:14px;padding:3px 10px;white-space:nowrap}
+#panel-logs .tag-row .tag b,#panel-logs .tag-row .tag strong{color:var(--amber);font-weight:bold}
+#panel-logs .tag-row:empty{display:none}
+#panel-logs .lvchips{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--card2);border:1px solid var(--rule);border-radius:20px;padding:4px 12px 4px 10px}
+#panel-logs .lvchips .hint{font:11px var(--mono);color:var(--ink2);letter-spacing:1px;text-transform:uppercase}
+#panel-logs .lvchips .chip{font:11px var(--mono);cursor:pointer;border-radius:14px;border:1px solid var(--rule);background:transparent;color:var(--faint);padding:2px 10px}
+#panel-logs .lvchips .chip:hover{color:var(--ink);border-color:var(--amber)}
+#panel-logs .lvchips .chip.lv-info.on{color:var(--info);border-color:var(--info-dim);background:var(--info-dim)}
+#panel-logs .lvchips .chip.lv-warn.on{color:var(--warn);border-color:var(--warn-dim);background:var(--warn-dim)}
+#panel-logs .lvchips .chip.lv-error.on{color:var(--danger);border-color:var(--danger-dim);background:var(--danger-dim)}
+/* logs tbl-wrap: визуал из shell .table-wrap; panel-уникумы: canvas-фон, коды, lv-индикаторы. */
+#panel-logs .tbl-wrap{overflow:auto;background:var(--canvas);max-width:100%}
+#panel-logs .tbl-wrap .table-wrap{margin:0;background:transparent;border:0}
+#panel-logs .tbl-wrap tbody td{vertical-align:top;max-width:320px}
+#panel-logs .tbl-wrap td .code-err{color:var(--danger);font-weight:bold}
+#panel-logs .tbl-wrap td .code-ok{color:var(--ok)}
+#panel-logs .tbl-wrap a{color:var(--amber)}
+#panel-logs .tbl-wrap .rid{color:var(--faint)}
+#panel-logs .tbl-wrap tr[data-lv="error"] td:first-child{box-shadow:inset 2px 0 0 var(--danger)}
+#panel-logs .tbl-wrap tr[data-lv="warn"] td:first-child{box-shadow:inset 2px 0 0 var(--warn)}
+#panel-logs .state.empty{border:1px dashed var(--rule);border-radius:var(--r-lg);padding:var(--g50-sp-6);text-align:center;color:var(--ink2);font:12px var(--mono)}
+/* Прокси в стиле главной (w08v6d-канон). Скоуп СТРОГО #panel-proxies.
+   Только ember-vars + home-канон (--paper --card --ink --amber --rule --brand --hover --canvas). */
+#panel-proxies{background:var(--paper, var(--panel));color:var(--ink, var(--text));font:14px/1.45 var(--serif)}
+#panel-proxies #proxy-panel{max-width:1600px;margin:0 auto;width:100%;min-width:0}
+/* --- proxy-panel / карточки --- */
+#panel-proxies .card{background:var(--card, var(--panel));border:1px solid var(--rule, var(--border));border-radius:var(--r-lg);padding:var(--card-p);box-shadow:var(--shadow);margin-bottom:0;min-width:0}
+/* proxies card-head: визуал из shell .card-head; здесь только panel-layout. */
+#panel-proxies .card-head{align-items:center;margin-bottom:var(--sec-mb);min-width:8px}
+#panel-proxies .hint{font:10.5px var(--mono);color:var(--ink2, var(--muted))}
+#panel-proxies .hint.row-err,#panel-proxies .row-err{color:var(--brand, var(--danger))}
+/* proxies badge/chip/btn: визуал из shell .badge/.chip/.btn--pill; panel-уникум — .active заливка. */
+#panel-proxies .badge.active{background:var(--amber, var(--warn));border-color:var(--amber, var(--warn));color:var(--canvas, var(--panel));font-weight:bold}
+#panel-proxies .btn:disabled{opacity:.55;cursor:default}
+/* --- prov-meta статусы (канон .kpi/.astat: card + rule + Consolas) --- */
+#panel-proxies .prov-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--sec-gap);margin-top:var(--sec-gap)}
+#panel-proxies .meta-box{background:var(--card, var(--panel));border:1px solid var(--rule, var(--border));border-radius:8px;padding:7px 10px;font-family:var(--mono);min-width:0}
+#panel-proxies .meta-box .k{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2, var(--muted));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-proxies .meta-box .v{margin-top:0;font-size:16px;font-weight:bold;line-height:1.25;color:var(--ink, var(--text));font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#panel-proxies .meta-box .v.ok{color:var(--green, var(--ok))}
+#panel-proxies .meta-box .v.warn{color:var(--amber, var(--warn))}
+#panel-proxies .meta-box .v.err{color:var(--brand, var(--danger))}
+#panel-proxies .meta-box .v .hint{display:block;margin-top:2px}
+#panel-proxies .meta-box .mono{font-family:var(--mono)}
+/* --- таблицы пула WARP-live / NOC (канон .toprow: Consolas-строки с rule-разделителем) --- */
+#panel-proxies .noc-wrap{background:var(--card, var(--panel));border:1px solid var(--rule, var(--border));border-radius:var(--r-lg);margin-top:12px;overflow:hidden;min-width:0}
+#panel-proxies .noc-top{display:flex;align-items:baseline;gap:var(--sec-gap);flex-wrap:wrap;font:11px var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--ink2, var(--muted));border-bottom:1px solid var(--rule, var(--border));padding:8px 14px 6px}
+#panel-proxies .noc-top b{font-family:var(--serif);font-style:italic;font-weight:normal;font-size:15px;letter-spacing:.5px;text-transform:none;color:var(--amber, var(--warn))}
+#panel-proxies .noc-top span{letter-spacing:0;text-transform:none;white-space:nowrap}
+#panel-proxies .noc-side{padding:9px 14px;font:11px var(--mono);color:var(--ink2, var(--muted))}
+/* proxies noc-table: визуал из shell .noc-table; panel-layout: max-width/ellipsis. */
+#panel-proxies .noc-table tbody td{max-width:32ch}
+#panel-proxies .noc-table .noc-heat{font-variant-numeric:tabular-nums}
+/* --- лента пула (feed-row: моно-строки как .toprow) --- */
+#panel-proxies .feed-row{display:flex;align-items:baseline;gap:var(--sec-gap);flex-wrap:wrap;padding:9px 6px;border-bottom:1px solid var(--rule, var(--border));font:12px var(--mono);color:var(--ink, var(--text))}
+#panel-proxies .feed-row:last-child{border-bottom:0}
+#panel-proxies .feed-row:hover{background:var(--hover)}
+#panel-proxies .feed-row .mono{font-family:var(--mono);color:var(--ink2, var(--muted))}
+#panel-proxies .feed-row code{font-family:var(--mono);font-size:12px;color:var(--text-2, var(--ink));overflow-wrap:anywhere}
+#panel-proxies .feed-row .row-err{color:var(--brand, var(--danger));font-size:11px;overflow-wrap:anywhere}
+/* --- пустые состояния (канон .state) --- */
+#panel-proxies .state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sec-gap);padding:36px var(--sec-x);text-align:center;color:var(--ink2, var(--muted))}
+#panel-proxies .state .title{font-family:var(--serif);font-size:18px;color:var(--ink, var(--text))}
+#panel-proxies .state .hint{margin-top:0}
+@media(max-width:640px){#panel-proxies .prov-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* settings.css — Настройки в стиле главной (w08v6d-канон). Скоуп СТРОГО #panel-settings. Только vars ember + home-канон. */
+#panel-settings{background:var(--paper);color:var(--ink);font:14px/1.45 var(--serif);max-width:1600px;margin:0 auto;width:100%}
+
+/* состояние загрузки */
+#panel-settings #settings-loading{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:28px 20px;color:var(--ink2);font-family:var(--mono)}
+#panel-settings #settings-loading .title{color:var(--ink);font-family:var(--serif);font-size:15px}
+#panel-settings #settings-loading .big{color:var(--amber)}
+
+/* секции конфига — карточки главной */
+#panel-settings #settings-editor .card.section{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:var(--card-p);box-shadow:var(--shadow)}
+#panel-settings #settings-editor .card-head{display:flex;align-items:baseline;gap:var(--sec-gap);flex-wrap:wrap;border-bottom:1px solid var(--rule);padding-bottom:var(--sec-pb);margin-bottom:var(--sec-mb)}
+#panel-settings #settings-editor .card-head h3{margin:0;font-family:var(--serif);font-weight:normal;font-size:22px;line-height:1.15;letter-spacing:.5px;color:var(--ink)}
+#panel-settings #settings-editor .card-head .hint{font:11px var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--ink2)}
+#panel-settings #settings-editor .card-head .spacer{flex:1;min-width:8px}
+
+/* подзаголовки групп (Breaker/Cooldown/Lockout) — как .sec-t главной */
+#panel-settings #settings-editor .sub-title{font:11px var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--ink2);border-bottom:1px solid var(--rule);border-top:0;padding-bottom:4px;margin:var(--sec-gap) 0 var(--sec-gap)}
+#panel-settings #settings-editor .sub-title .hint{font:10.5px var(--mono);letter-spacing:0;text-transform:none;color:var(--ink2)}
+#panel-settings #settings-editor .sub-title:first-child{border-top:0;margin-top:0;padding-top:0}
+
+/* поля формы */
+#panel-settings #settings-editor .form-grid{gap:var(--sec-gap)}
+#panel-settings #settings-editor .field{margin-bottom:var(--sec-gap);min-width:0}
+#panel-settings #settings-editor .form-grid > .field{margin-bottom:0}
+#panel-settings #settings-editor .field > label{display:block;font:11px var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2);margin-bottom:6px;font-weight:400}
+#panel-settings #settings-editor .field .hint{font:10.5px var(--mono);color:var(--ink2);margin-top:6px;line-height:1.45}
+
+/* инпуты и селекты — холст главной, янтарный фокус */
+#panel-settings #settings-editor .input,
+#panel-settings #settings-editor select.input,
+#panel-settings #settings-editor textarea.input{width:100%;min-height:38px;padding:0 12px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);color:var(--ink);font-family:var(--mono);font-size:13px;transition:border-color var(--tr),background var(--tr),box-shadow var(--tr)}
+#panel-settings #settings-editor textarea.input{padding:9px 11px;min-height:70px;resize:vertical;line-height:1.5}
+#panel-settings #settings-editor .input::placeholder{color:var(--faint);font-family:var(--mono)}
+#panel-settings #settings-editor .input:hover{border-color:var(--border-2)}
+#panel-settings #settings-editor .input:focus{border-color:var(--amber);background:var(--canvas);outline:none;box-shadow:0 0 0 1px var(--amber)}
+#panel-settings #settings-editor select.input{cursor:pointer}
+#panel-settings #settings-editor select.input option{background:var(--card2);color:var(--ink)}
+#panel-settings #settings-editor .input.invalid{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+#panel-settings #settings-editor input[type="number"].input{font-variant-numeric:tabular-nums}
+
+/* тоглы (switch) */
+#panel-settings #settings-editor .switch{display:inline-flex;align-items:center;gap:var(--sec-gap);min-height:42px;cursor:pointer}
+#panel-settings #settings-editor .field > label.switch{display:inline-flex;margin-bottom:0;text-transform:none;letter-spacing:normal;font-family:var(--mono);font-size:13px;font-weight:400;color:var(--ink)}
+#panel-settings #settings-editor .switch input{accent-color:var(--amber)}
+#panel-settings #settings-editor .switch input:focus-visible ~ .trk{outline:1px solid var(--amber);outline-offset:2px}
+#panel-settings #settings-editor .switch .trk{background:var(--canvas);border:1px solid var(--rule)}
+#panel-settings #settings-editor .switch input:checked ~ .trk{background:var(--amber);border-color:var(--amber)}
+#panel-settings #settings-editor .switch .sw-lbl{color:var(--ink)}
+
+/* секретные поля: глаз-кнопка */
+#panel-settings #settings-editor .eye-row{display:flex;gap:var(--sec-gap);align-items:center}
+#panel-settings #settings-editor .eye-row .input{flex:1 1 auto;min-width:0}
+#panel-settings #settings-editor .eye-row [data-eye]{flex:none;font-family:var(--mono);font-size:11px;background:transparent;border:1px solid var(--rule);border-radius:20px;color:var(--ink2);padding:5px 12px;cursor:pointer;white-space:nowrap}
+#panel-settings #settings-editor .eye-row [data-eye]:hover{background:var(--hover);color:var(--ink);border-color:var(--amber)}
+#panel-settings #settings-editor .eye-row [data-eye]:focus-visible{outline:1px solid var(--amber);outline-offset:2px}
+
+/* политика ошибок — строки как toprow главной */
+#panel-settings #settings-editor .ep-grid{display:grid;gap:0;margin-top:8px;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--card)}
+#panel-settings #settings-editor .ep-row{display:grid;grid-template-columns:90px minmax(0,1fr) 170px;gap:8px 10px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--rule);background:transparent}
+#panel-settings #settings-editor .ep-row:last-child{border-bottom:0}
+#panel-settings #settings-editor .ep-row:hover{background:var(--hover)}
+#panel-settings #settings-editor .ep-row code{font-family:var(--mono);font-size:12px;color:var(--amber)}
+#panel-settings #settings-editor .ep-row .hint{margin:0;font:11px var(--mono);color:var(--ink2)}
+
+/* сворачиваемая x-panel */
+#panel-settings #settings-editor .x-panel{gap:16px 16px}
+
+/* статус конфига + кнопка перечитать */
+#panel-settings #settings-editor .cfg-status{display:inline-flex;align-items:center;gap:6px;font:11px var(--mono);min-height:20px;color:var(--ink2)}
+#panel-settings #settings-editor .cfg-status.ok{color:var(--ok)}
+#panel-settings #settings-editor .cfg-status.err{color:var(--danger)}
+#panel-settings #settings-editor .cfg-status.warn{color:var(--amber)}
+#panel-settings #settings-editor .cfg-status.dirty-dot{color:var(--amber)}
+
+/* settings btn: визуал из shell .btn/.btn--pill(.primary/.ghost/.sm); scoped layout — инлайн-форма. */
+#panel-settings #settings-editor .btn{gap:7px}
+#panel-settings #settings-editor #cfg-reload{margin-left:4px}
+
+/* липкая полоса сохранения */
+#panel-settings #settings-editor .card-foot{position:sticky;bottom:0;z-index:3;background:var(--card);border-top:1px solid var(--rule);padding:10px 0}
+
+/* модули: список и пустое состояние */
+#panel-settings #settings-editor #mods-list .state{background:transparent;border:0;padding:14px 4px;color:var(--ink2);font-family:var(--mono)}
+#panel-settings #settings-editor #mods-list .state .title{color:var(--ink);font-family:var(--serif)}
+#panel-settings #settings-editor #mods-list .state .big{color:var(--amber)}
+
+@media (max-width:560px){
+  #panel-settings #settings-editor .ep-row{grid-template-columns:64px minmax(0,1fr);grid-auto-rows:auto}
+  #panel-settings #settings-editor .ep-row select.input{grid-column:1/-1}
+}
+/* ============ Единый ритм секций (2026-09-28): значения = tokens-канон, переопределение удалено.
+   Шкала: бока --sec-x:20px, вертикаль --sec-y:14px, зазоры --sec-gap:10px, карта --card-p:10px 14px. */
+#panel-providers #provList{padding:var(--sec-y) var(--sec-x) var(--sec-y)}
+#panel-combos .combo-top{margin:var(--sec-y) var(--sec-x) 0}
+#panel-combos #combo-list{gap:var(--sec-gap);padding:var(--sec-gap) var(--sec-x)}
+#panel-usage .card.section{margin:var(--sec-y) var(--sec-x) var(--sec-gap)}
+#panel-usage #usage-kpis{margin:0 var(--sec-x) var(--sec-y)}
+#panel-usage .chart-bar{display:flex;align-items:center;gap:var(--sec-gap);flex-wrap:wrap;margin:0 0 8px;min-height:30px}
+#panel-usage .chart-bar .spacer{flex:1 1 auto;min-width:8px}
+#panel-logs .card.section{margin:var(--sec-y) var(--sec-x) var(--sec-y);padding:var(--sec-y) var(--sec-x)}
+#panel-logs .card-head{margin-bottom:var(--sec-gap)}
+#panel-proxies #proxy-panel{padding:var(--sec-y) var(--sec-x) var(--sec-y);display:flex;flex-direction:column;gap:var(--sec-gap)}
+#panel-proxies .card{margin-bottom:0}
+#panel-settings #settings-editor{padding:var(--sec-y) var(--sec-x) var(--sec-y);display:flex;flex-direction:column;gap:var(--sec-gap)}

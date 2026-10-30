@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main, feat/*]
+  pull_request:
+    branches: [main, feat/*]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      GOMODCACHE: D:/gomod
+      GOCACHE: D:/gocache
+      GOTMPDIR: D:/gotmp
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Frontend copies in sync
+        run: |
+          git diff --no-index --quiet internal/gui/frontend/dist cmd/ai-router/frontend/dist 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            throw "internal/gui/frontend/dist и cmd/ai-router/frontend/dist разошлись — синхронизируйте копию"
+          }
+        shell: pwsh
+
+      - name: Create Go cache dirs
+        run: New-Item -ItemType Directory -Force -Path D:/gomod, D:/gocache, D:/gotmp | Out-Null
+        shell: pwsh
+
+      - name: Set up Go 1.24
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: false
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        shell: pwsh
+      - name: Go vet
+        run: |
+          go version
+          go env GOMODCACHE
+          go vet ./...
+        shell: pwsh
+      - name: Wails build
+        working-directory: cmd/ai-router
+        run: |
+          wails build --skipbindings
+        shell: pwsh
+
+      - name: Unit tests
+        run: go test ./...
+        shell: pwsh

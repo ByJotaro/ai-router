@@ -1,0 +1,14 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "omnigate-gui",
+  "outputfilename": "omnigate-gui",
+  "frontend:install": "",
+  "frontend:build": "echo skip frontend build",
+  "frontend:dir": "frontend",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "jotaro",
+    "email": ""
+  }
+}

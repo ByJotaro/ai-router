@@ -1,0 +1,219 @@
+/* =====================================================================
+   w09 · «КОЛОДА КАРТОЧЕК» — крупная карточка одного объекта + перелистывание.
+   Скоуп: #panel-usage / #panel-logs / #panel-proxies / #panel-settings.
+   Только var(--…) из tokens.css; ни одного литерального цвета.
+   Классы строго w09-*. Составные блоки — канон shell (.card/.chip/.kpi/
+   .segswitch/.badge/.progress/.meta-box/.feed-row/.form-grid/.switch).
+   ===================================================================== */
+
+/* ---------- 1. Каркас колоды (общий для всех четырёх вкладок) ---------- */
+.w09-deckwrap{position:relative;min-width:0}
+.w09-bar{display:flex;align-items:center;gap:var(--sec-gap);flex-wrap:wrap;margin-bottom:var(--sec-gap);min-width:0}
+.w09-sp{flex:1 1 auto;min-width:8px}
+.w09-hint{font:10.5px var(--mono);color:var(--ink2);letter-spacing:.3px}
+.w09-nav{flex:none;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--rule);border-radius:20px;background:var(--canvas);color:var(--ink2);
+  font:14px var(--mono);cursor:pointer;transition:color var(--tr),border-color var(--tr),background var(--tr)}
+.w09-nav:hover:not(:disabled){color:var(--amber);border-color:var(--amber);background:var(--hover)}
+.w09-nav:focus-visible{outline:1px solid var(--amber);outline-offset:2px}
+.w09-nav:disabled{opacity:.35;cursor:default}
+.w09-idx{flex:none;font:11px var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2);white-space:nowrap}
+.w09-idx b{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--amber);font-variant-numeric:tabular-nums}
+.w09-idx i{font-style:normal;color:var(--ink2);opacity:.8}
+
+/* карточка объекта: главный объект экрана */
+.w09-card{border:1px solid var(--rule);border-radius:var(--r-lg);background:var(--card);
+  box-shadow:var(--shadow);padding:var(--card-p);min-width:0}
+.w09-card[data-w09-tone="err"]{border-color:var(--danger)}
+.w09-card[data-w09-tone="warn"]{border-color:var(--warn)}
+.w09-card[data-w09-tone="ok"]{border-color:var(--rule)}
+.w09-card-top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;min-width:0}
+.w09-date{flex:0 0 auto;font:11px var(--mono);color:var(--ink2);letter-spacing:1.5px;text-transform:uppercase}
+.w09-date b{display:block;font:22px var(--serif);letter-spacing:.5px;color:var(--ink);text-transform:none;font-weight:400;margin-top:2px}
+.w09-lead{flex:1 1 220px;min-width:0}
+.w09-lead .w09-lbl{font:10.5px var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2)}
+.w09-lead .w09-big{font:30px var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.15;
+  margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w09-lead .w09-big.w09-sm{font-size:22px}
+.w09-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px;text-align:right}
+.w09-delta{font:11px var(--mono);font-variant-numeric:tabular-nums;color:var(--ink2)}
+.w09-delta.up{color:var(--ok)}
+.w09-delta.down{color:var(--danger)}
+.w09-delta.flat{color:var(--ink2)}
+
+/* сетка полей карточки: «определение» одного объекта */
+.w09-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--sec-gap);margin-top:12px;min-width:0}
+.w09-fld{min-width:0;border-top:1px solid var(--rule);padding-top:6px}
+.w09-fld .k{font:10.5px var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.w09-fld .v{font:15px var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px;
+  overflow-wrap:anywhere;word-break:normal}
+.w09-fld .v.w09-ok{color:var(--ok)}
+.w09-fld .v.w09-warn{color:var(--warn)}
+.w09-fld .v.w09-err{color:var(--danger)}
+.w09-fld .v.w09-dim{color:var(--ink2)}
+.w09-fld .hint{font:10.5px var(--mono);color:var(--ink2);margin-top:3px;line-height:1.45}
+.w09-fld.w09-wide{grid-column:1/-1}
+
+/* полоска выбора объектов: главный внешний вид колоды между карточками */
+.w09-strip{display:flex;align-items:flex-end;gap:3px;height:52px;margin-top:12px;min-width:0}
+.w09-tick{flex:1 1 0;min-width:4px;height:100%;display:flex;align-items:flex-end;justify-content:center;
+  border:0;background:transparent;padding:0;cursor:pointer;border-radius:4px}
+.w09-tick i{display:block;width:100%;border-radius:3px 3px 0 0;background:var(--canvas);border:1px solid var(--rule);border-bottom:0;
+  transition:background var(--tr),border-color var(--tr)}
+.w09-tick.on i{background:var(--barfill);border-color:var(--amber)}
+.w09-tick.w09-hot i{border-color:var(--danger)}
+.w09-tick:hover i{background:var(--hover);border-color:var(--amber)}
+.w09-tick:focus-visible{outline:1px solid var(--amber);outline-offset:-1px}
+.w09-strip-cap{display:flex;justify-content:space-between;font:10px var(--mono);color:var(--faint);margin-top:2px}
+
+/* список-полоска: быстрый переход (прокручиваемая лента строк) */
+.w09-list{display:flex;flex-direction:column;margin-top:var(--sec-gap);max-height:212px;overflow:auto;
+  border:1px solid var(--rule);border-radius:10px;background:var(--canvas);min-width:0}
+.w09-lrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;
+  border:0;border-bottom:1px solid var(--rule);background:transparent;color:var(--ink2);
+  font:12px var(--mono);text-align:left;padding:7px 10px;cursor:pointer;min-width:0}
+.w09-lrow:last-child{border-bottom:0}
+.w09-lrow:hover{background:var(--hover);color:var(--ink)}
+.w09-lrow.on{background:var(--hover);color:var(--ink);box-shadow:inset 2px 0 0 var(--amber)}
+.w09-lrow.w09-errrow{box-shadow:inset 2px 0 0 var(--danger)}
+.w09-lrow.w09-errrow.on{box-shadow:inset 2px 0 0 var(--danger),inset 0 0 0 1px var(--rule)}
+.w09-lrow .a{color:var(--amber);font-variant-numeric:tabular-nums}
+.w09-lrow .b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.w09-lrow .c{color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.w09-keys{font:10.5px var(--mono);color:var(--faint);margin-top:6px;letter-spacing:.3px}
+
+/* бары состава (вход/выход/кэш) внутри карточки */
+.w09-bars{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.w09-brow{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:8px;align-items:center;font:11px var(--mono);color:var(--ink2)}
+.w09-brow .v{color:var(--ink);font-variant-numeric:tabular-nums}
+.w09-track{height:7px;border-radius:4px;background:var(--canvas);border:1px solid var(--rule);overflow:hidden}
+.w09-track i{display:block;height:100%;background:var(--barfill)}
+.w09-track i.alt{background:var(--info)}
+.w09-track i.soft{background:var(--pool)}
+
+/* статус-строка карточки (canon .sdot + .status-line) */
+.w09-sline{display:inline-flex;align-items:center;gap:8px;font:11px var(--mono);color:var(--ink2);flex-wrap:wrap}
+.w09-badge-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:10px}
+
+/* скелетоны загрузки (канон .skeleton/.sk-*) */
+.w09-sk{position:absolute;inset:0;z-index:2;background:var(--card);border-radius:var(--r-lg);padding:var(--card-p);display:flex;flex-direction:column;gap:10px;justify-content:center}
+.w09-sk .w09-skrow{display:flex;gap:12px;align-items:center}
+.w09-sk .skeleton{height:12px;border-radius:6px;flex:1 1 auto;background:var(--canvas);border:1px solid var(--rule)}
+
+/* ---------- 2. ИСПОЛЬЗОВАНИЕ ---------- */
+#panel-usage .w09-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:var(--sec-gap);
+  margin:0 var(--sec-x) var(--sec-y);align-items:stretch}
+#panel-usage .w09-chart{margin:0 var(--sec-x) var(--sec-y);border:1px solid var(--rule);border-radius:var(--r-lg);
+  background:var(--card);box-shadow:var(--shadow);padding:var(--card-p);min-width:0}
+#panel-usage .w09-chart-cap i{font-style:normal;color:var(--amber);letter-spacing:0;text-transform:none}
+#panel-usage .w09-selg{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font:11px var(--mono);color:var(--ink2)}
+#panel-usage .w09-selg i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:5px}
+#panel-usage .w09-calbar{display:flex;align-items:center;gap:var(--sec-gap);flex-wrap:wrap;margin-bottom:var(--sec-gap)}
+#panel-usage .w09-calcap{font:11px var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2)}
+#panel-usage .w09-calcap b{font-family:var(--serif);font-size:16px;font-weight:400;letter-spacing:.5px;color:var(--ink);text-transform:none}
+#panel-usage .w09-mos{display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:var(--sec-gap);min-width:0}
+#panel-usage .w09-mo{border:1px solid var(--rule);border-radius:10px;background:var(--canvas);padding:7px 8px 9px;min-width:0}
+#panel-usage .w09-mo-h{font:10.5px var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2);margin-bottom:6px}
+#panel-usage .w09-mo-g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+#panel-usage .w09-mo-wd{font:9.5px var(--mono);color:var(--faint);text-align:center;padding:1px 0}
+#panel-usage .w09-day{aspect-ratio:1/1;min-height:14px;border:1px solid var(--rule);border-radius:4px;background:var(--cell0);
+  padding:0;cursor:pointer;color:var(--ink2);font:9.5px var(--mono);display:flex;align-items:center;justify-content:center}
+#panel-usage .w09-day.w09-pad{background:transparent;border-color:transparent;cursor:default}
+#panel-usage .w09-day.w09-l1{background:var(--g50-heat-0)}
+#panel-usage .w09-day.w09-l2{background:var(--g50-heat-1)}
+#panel-usage .w09-day.w09-l3{background:var(--g50-heat-2)}
+#panel-usage .w09-day.w09-l4{background:var(--g50-heat-3)}
+#panel-usage .w09-day.w09-l5{background:var(--g50-heat-4);color:var(--canvas)}
+#panel-usage .w09-day.w09-sel{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber) inset}
+#panel-usage .w09-day:hover{border-color:var(--amber)}
+#panel-usage .w09-calfoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:var(--sec-gap);font:10.5px var(--mono);color:var(--ink2)}
+#panel-usage .w09-calfoot i{display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid var(--rule);margin-right:4px}
+
+/* ---------- 3. ЖУРНАЛЫ ---------- */
+#panel-logs .chip.w09-ok.on{color:var(--ok);border-color:var(--ok-dim);background:var(--ok-dim)}
+#panel-logs .chip.w09-warn.on{color:var(--warn);border-color:var(--warn-dim);background:var(--warn-dim)}
+#panel-logs .chip.w09-err.on{color:var(--danger);border-color:var(--danger-dim);background:var(--danger-dim)}
+#panel-logs #logs-paused.on{color:var(--amber);border-color:var(--amber);background:var(--hover)}
+#panel-logs .w09-card.w09-err{border-color:var(--danger)}
+#panel-logs .w09-errbox{border:1px solid var(--danger-dim);border-radius:8px;background:var(--canvas);
+  padding:8px 10px;margin-top:10px;font:12px var(--mono);color:var(--danger);overflow-wrap:anywhere}
+#panel-logs .w09-stats{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:var(--sec-gap);
+  border-top:1px solid var(--rule);padding-top:var(--sec-pb);font:10.5px var(--mono);color:var(--ink2)}
+#panel-logs .w09-stats b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+#panel-logs .w09-feed{display:flex;flex-direction:column;border:1px solid var(--rule);border-radius:10px;
+  background:var(--canvas);overflow:hidden;min-width:0}
+#panel-logs .w09-skwrap{padding:2px 0}
+
+/* ---------- 4. ПРОКСИ ---------- */
+#panel-proxies .w09-meta{display:flex;flex-wrap:wrap;gap:6px 16px;min-width:0}
+#panel-proxies .w09-meta b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+#panel-proxies .w09-meta code{font-family:var(--mono);color:var(--amber);overflow-wrap:anywhere}
+#panel-proxies .w09-feed{display:flex;flex-direction:column;border:1px solid var(--rule);border-radius:10px;background:var(--canvas);overflow:hidden;min-width:0}
+#panel-proxies .w09-feed .feed-row{border-bottom:1px solid var(--rule)}
+#panel-proxies .w09-feed .feed-row:last-child{border-bottom:0}
+#panel-proxies .w09-feed .feed-row.w09-err{box-shadow:inset 2px 0 0 var(--danger)}
+
+/* ---------- 5. НАСТРОЙКИ ---------- */
+#panel-settings .w09-tick{font:10.5px var(--mono);color:var(--ink2);align-items:center}
+#panel-settings .w09-tick.on{color:var(--amber)}
+#panel-settings .w09-tick i{display:none}
+#panel-settings .w09-sect{min-width:0}
+#panel-settings .w09-grid > .field.w09-wide{grid-column:1/-1}
+#panel-settings .w09-grid > .field{margin-bottom:0}
+#panel-settings .w09-tiers{display:flex;flex-direction:column;border:1px solid var(--rule);border-radius:10px;background:var(--canvas);overflow:hidden}
+#panel-settings .w09-trow{display:grid;grid-template-columns:28px minmax(0,1fr) auto auto;gap:8px;align-items:center;
+  padding:7px 10px;border-bottom:1px solid var(--rule);font:12px var(--mono);color:var(--ink)}
+#panel-settings .w09-trow:last-child{border-bottom:0}
+#panel-settings .w09-trow .n{color:var(--amber);font-variant-numeric:tabular-nums}
+#panel-settings .w09-json{margin-top:12px;border:1px solid var(--rule);border-radius:10px;background:var(--canvas);
+  padding:8px 10px;max-height:210px;overflow:auto;font:11.5px/1.5 var(--mono);color:var(--ink2);white-space:pre-wrap;overflow-wrap:anywhere}
+#panel-settings .w09-json-path{display:block;color:var(--amber);letter-spacing:1px;margin-bottom:4px}
+#panel-settings .w09-mod{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--rule);
+  border-radius:10px;background:var(--canvas);padding:8px 10px;font:12px var(--mono);color:var(--ink2);min-width:0}
+#panel-settings .w09-mod .nm{color:var(--ink);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#panel-settings .w09-mod .sp{flex:1 1 auto;min-width:8px}
+#panel-settings #cfg-reload{margin-left:4px}
+#panel-settings .w09-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:var(--sec-gap)}
+#panel-settings .cfg-status{display:inline-flex;align-items:center;gap:6px;font:11px var(--mono);min-height:20px;color:var(--ink2)}
+#panel-settings .cfg-status.ok{color:var(--ok)}
+#panel-settings .cfg-status.err{color:var(--danger)}
+#panel-settings .cfg-status.warn{color:var(--amber)}
+
+/* ---------- 5б. Общие элементы, которые не покрывает канон ---------- */
+.w09-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.w09-wide{grid-column:1/-1}
+.w09-strip-lbl{height:auto;gap:4px;align-items:stretch;flex-wrap:wrap}
+.w09-strip-lbl .w09-tick{height:auto;padding:5px 10px;border:1px solid var(--rule);border-radius:16px;
+  font:11px var(--mono);color:var(--ink2);background:var(--canvas);white-space:nowrap}
+.w09-strip-lbl .w09-tick.on{border-color:var(--amber);color:var(--amber);background:var(--hover)}
+.w09-strip-lbl .w09-tick.w09-dirty{box-shadow:inset 0 -2px 0 var(--warn)}
+#panel-logs .w09-x{flex:none;padding:0 8px;min-height:26px;border:1px solid var(--rule);border-radius:20px;
+  background:var(--canvas);color:var(--ink2);font:12px var(--mono);cursor:pointer}
+#panel-logs .w09-x:hover{color:var(--amber);border-color:var(--amber)}
+#panel-logs .w09-x[hidden]{display:none}
+#panel-logs .w09-feed .feed-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:8px 10px}
+#panel-logs .w09-feed .feed-row.w09-err{box-shadow:inset 2px 0 0 var(--danger)}
+#panel-logs .w09-feed .mono{font:11.5px var(--mono);color:var(--ink2)}
+#panel-logs .w09-feed code{font:12px var(--mono);color:var(--ink);background:transparent;border:0}
+#panel-logs .w09-feed .row-err{font:11.5px var(--mono);color:var(--danger);overflow-wrap:anywhere}
+#panel-usage #usage-chart-box{background:var(--canvas);border:1px solid var(--rule);border-radius:12px;overflow:hidden;cursor:crosshair;padding:0}
+#panel-usage .w09-chart-cap .w09-cap-t{font:11px var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--ink2)}
+#panel-usage .w09-barfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+#panel-usage .w09-cal{min-width:0}
+
+/* ---------- 6. Узкие экраны ---------- */
+@media (max-width:640px){
+  .w09-lead .w09-big{font-size:22px}
+  .w09-side{align-items:flex-start;text-align:left}
+  #panel-usage .w09-mos{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+  .w09-strip{height:38px}
+  .w09-strip.w09-strip-lbl{height:auto}
+  .w09-lrow{grid-template-columns:auto minmax(0,1fr)}
+  .w09-lrow .c{grid-column:2;color:var(--ink2)}
+  .w09-brow{grid-template-columns:74px minmax(0,1fr) auto}
+}
+@media (max-width:560px){
+  #panel-settings #settings-editor .w09-ep .ep-row{grid-template-columns:56px minmax(0,1fr)}
+  #panel-settings #settings-editor .w09-ep .ep-row .w09-hint{grid-column:1/-1}
+}

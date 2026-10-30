@@ -1,0 +1,43 @@
+# Build output
+dist/
+build/
+!cmd/ai-router/build/
+!cmd/ai-router/build/windows/
+!cmd/ai-router/build/windows/icon.ico
+!cmd/ai-router/build/appicon.png
+!cmd/ai-router/frontend/dist/
+!cmd/ai-router/frontend/dist/**
+!internal/gui/frontend/dist/
+!internal/gui/frontend/dist/**
+
+# Root exes (never commit: wails/dev copies)
+/*.exe
+cmd/ai-router/build/bin/
+cmd/ai-router/build/windows/info.json
+cmd/ai-router/build/windows/wails.exe.manifest
+# Go — built exes (cmd/.../build/bin covers via build/)
+*.exe~
+
+# Runtime state (config lives in %LOCALAPPDATA%, not repo)
+*.log
+*.err
+config.yaml
+state.json
+.env
+*.bak
+
+# Worktrees
+.worktrees/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Wails/GUI build artifacts (generated)
+cmd/ai-router/frontend/wailsjs/
+internal/gui/frontend/wailsjs/

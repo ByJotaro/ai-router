@@ -1,0 +1,10 @@
+/* mix — компоновка «Настроек»: карточки пульта (w06) + строки-шкалы полотна (w01).
+   Только var(--…), ни одного литерального цвета. */
+.mix-cards { display: flex; flex-direction: column; gap: var(--sec-gap); }
+.mix-card { margin: 0; }
+.mix-card .w01-scales,
+.mix-card .w01-nrows + .w01-scales,
+.mix-card .w01-scales + .w01-nrows { margin-top: var(--sec-gap); }
+.mix-card .w01-lad:first-of-type { margin-top: var(--sec-gap); }
+.mix-card .w01-modband { margin-top: 2px; }
+.mix-card .card-head .hint { text-transform: none; }

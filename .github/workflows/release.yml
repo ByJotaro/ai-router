@@ -1,0 +1,51 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Install wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+        shell: pwsh
+
+      - name: Unit tests
+        run: go test ./...
+        shell: pwsh
+
+      - name: Build GUI
+        working-directory: cmd/ai-router
+        run: wails build --skipbindings -ldflags "-X main.Version=${{ github.ref_name }}"
+        shell: pwsh
+
+      - name: Package
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $exe = "ai-router-$tag-windows-amd64.exe"
+          Copy-Item "cmd/ai-router/build/bin/ai-router.exe" $exe
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  $exe" | Out-File "ai-router-$tag-sha256.txt" -Encoding ascii
+          # AGPL-3.0 requires the license text to travel with the binary.
+          Copy-Item LICENSE "ai-router-$tag-LICENSE.txt"
+        shell: pwsh
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ai-router-*-windows-amd64.exe
+            ai-router-*-sha256.txt
+            ai-router-*-LICENSE.txt
+          generate_release_notes: true

@@ -1,0 +1,255 @@
+/* ============================================================
+   КОМБО — canvas-редактор каскада. Визуальный язык темы «БД»
+   (mono) с главной: нейтральный графит, единственный акцент —
+   тёмно-красный, моно-типографика, инженерная плотность,
+   диагональная штриховка на холсте. Собственных цветов нет:
+   всё через токены тем (--card/--rule/--ink/--ink2/--amber/
+   --chart/--canvas), поэтому вкладка не ломается в других темах.
+   ============================================================ */
+
+#panel-combos{
+  --cbc-bg:    var(--canvas, #121214);
+  --cbc-panel: var(--card, #1a1a1e);
+  --cbc-line:  var(--rule, #303036);
+  --cbc-txt:   var(--ink, #f7f7f7);
+  --cbc-dim:   var(--ink2, #b5b5b5);
+  --cbc-acc:   var(--amber, #c22a31);
+  --cbc-err:   var(--chart, var(--amber, #c22a31));
+  --cbc-r:     4px;
+}
+
+/* ============ список пресетов (рендерит shell.js) ============ */
+#panel-combos #combo-list{display:flex;flex-direction:column;gap:var(--sec-gap);padding:var(--sec-y) var(--sec-x)}
+/* алиас: клик по карточке открывает канвас */
+#panel-combos #combo-list .combo-card[data-cbxopen]{cursor:pointer}
+#panel-combos #combo-list .combo-card[data-cbxopen]:hover{border-color:var(--ink2)}
+#panel-combos #combo-list .combo-card[data-cbxopen]:focus-visible{outline:1px solid var(--amber);outline-offset:2px}
+#panel-combos #combo-list .card{
+  border:1px solid var(--rule);background:var(--card);border-radius:var(--cbc-r);
+  padding:var(--card-p);font-family:var(--mono);box-shadow:none;margin:0}
+#panel-combos #combo-list .combo-card:hover,
+#panel-combos #combo-list .card:hover{border-color:var(--border-2);background:var(--card)}
+#panel-combos #combo-list .card-head{border-bottom:1px solid var(--rule);padding-bottom:var(--sec-pb);margin-bottom:var(--sec-mb);align-items:center}
+#panel-combos #combo-list .card-head h3{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:none}
+#panel-combos #combo-list .chip{background:var(--canvas);border-color:var(--rule);border-radius:2px;color:var(--ink2);font-size:10px;padding:1px 7px}
+#panel-combos #combo-list .hint{color:var(--ink2);font-size:10.5px;font-family:var(--mono);letter-spacing:.2px}
+
+/* каскад пресета: нумерованные плитки + стрелка перехода */
+#panel-combos .combo-chain{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin-top:var(--sec-gap)}
+#panel-combos .chain-step{
+  position:relative;display:flex;align-items:center;gap:8px;min-width:0;max-width:260px;
+  border:1px solid var(--rule);border-radius:2px;background:var(--canvas);padding:5px 9px 5px 7px}
+#panel-combos .chain-step:hover{border-color:var(--ink2)}
+#panel-combos .cs-num{
+  flex:none;min-width:18px;height:18px;padding:0 3px;border:1px solid var(--rule);border-radius:2px;
+  background:transparent;color:var(--ink2);font-size:9.5px;font-weight:700;display:inline-flex;
+  align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+#panel-combos .chain-step:first-child .cs-num{color:var(--amber);border-color:var(--amber)}
+#panel-combos .cs-prov{color:var(--ink);font-size:11.5px;font-weight:600}
+#panel-combos .cs-model{color:var(--ink2);font-size:10px}
+#panel-combos .combo-chain .chain-arr{
+  align-self:center;color:var(--ink2);font-size:12px;font-weight:400;padding:0 7px;flex:none;line-height:1}
+#panel-combos .combo-chain .model-pill{background:var(--canvas);border:1px dashed var(--rule);border-radius:2px;color:var(--ink2);font-size:10px;padding:2px 8px}
+#panel-combos #combo-list .btn{margin:2px 4px 2px 0}
+#panel-combos #combo-list .btn--pill{border-radius:2px}
+
+/* ============ корень редактора ============ */
+.cbc{display:flex;flex-direction:column;gap:10px;font-family:var(--mono);min-width:0}
+.cbc .spacer{flex:1 1 auto;min-width:8px}
+
+/* тулбар */
+.cbc-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;
+  border:1px solid var(--rule);border-radius:var(--cbc-r);background:var(--card)}
+.cbc-title{display:flex;align-items:baseline;gap:7px;min-width:0}
+.cbc-title .nm{font-size:12px;font-weight:700;letter-spacing:.6px;color:var(--ink);white-space:nowrap}
+.cbc-title .id{font-size:10px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cbc-bar .input{min-width:170px;max-width:220px;flex:0 1 auto;background:var(--canvas)}
+.cbc-err{color:var(--chart);font-size:10.5px;min-height:14px;flex:1 1 120px;min-width:0}
+.cbc-bar .btn{border-radius:2px;min-height:30px;font-size:11px}
+.cbc-bar .btn.ghost{color:var(--ink2)}
+
+/* ============ панели ============ */
+.cbc-main{display:grid;grid-template-columns:184px minmax(0,1fr) 262px;gap:10px;align-items:stretch;min-width:0}
+/* fullscreen: слева ничего — широкий холст + инспектор справа */
+.cbc-main-full{grid-template-columns:minmax(0,1fr) 300px;flex:1 1 auto;min-height:0}
+.cbc-full{min-height:0}
+.cbc-main-full .cbc-stage{height:clamp(420px,52vh,640px)}
+.cbc-bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:10px;align-items:stretch;min-width:0}
+.cbc-pane{display:flex;flex-direction:column;min-width:0;min-height:0;
+  border:1px solid var(--rule);border-radius:var(--cbc-r);background:var(--card)}
+.cbc-h{display:flex;align-items:baseline;gap:8px;padding:6px 9px;border-bottom:1px solid var(--rule);
+  font-size:9.5px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--ink2);white-space:nowrap;overflow:hidden}
+.cbc-h .cbc-hsub{font-size:9px;letter-spacing:.6px;text-transform:none;color:var(--ink2);opacity:.75;overflow:hidden;text-overflow:ellipsis}
+.cbc-b{padding:9px;min-height:0;overflow:auto;scrollbar-width:thin}
+.cbc-b.tight{padding:6px}
+
+/* ============ палитра блоков ============ */
+.cbc-kind{display:flex;align-items:center;gap:8px;width:100%;text-align:left;cursor:pointer;
+  background:var(--canvas);border:1px solid var(--rule);border-radius:2px;padding:5px 7px;margin-bottom:5px;
+  color:var(--ink);font-family:var(--mono);font-size:11px;line-height:1.3}
+.cbc-kind:hover{border-color:var(--ink2);background:var(--hover)}
+.cbc-kind:last-child{margin-bottom:0}
+.cbc-kind i{flex:none;width:9px;height:9px;border:1px solid var(--ink2);background:transparent}
+.cbc-kind[data-kind="start"] i{background:var(--ink2)}
+.cbc-kind[data-kind="step"] i{background:var(--ink)}
+.cbc-kind[data-kind="condition"] i{background:var(--amber);border-color:var(--amber)}
+.cbc-kind[data-kind="finish"] i{border-style:dashed}
+.cbc-kind span small{display:block;color:var(--ink2);font-size:9px;letter-spacing:.3px}
+.cbc-legend{margin-top:9px;padding-top:8px;border-top:1px solid var(--rule)}
+.cbc-cls{display:inline-block;margin:2px 3px 0 0;border:1px solid var(--rule);border-radius:2px;
+  padding:1px 6px;color:var(--ink2);font-size:9.5px;font-family:var(--mono);white-space:nowrap}
+.cbc-cls[data-c="gate_terminal"],.cbc-cls[data-c="auth"]{border-color:var(--chart);color:var(--chart)}
+.cbc-cls[data-c="pool_exhausted"]{border-style:dashed}
+.cbc-cls[data-c="quota"]{border-color:var(--ink2);color:var(--ink)}
+
+/* ============ холст ============ */
+.cbc-stage{position:relative;flex:1 1 auto;min-height:0;height:clamp(340px,42vh,500px);
+  background:var(--canvas);border-top:0;border-radius:0 0 var(--cbc-r) var(--cbc-r);overflow:hidden}
+.cbc-cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+.cbc-cv:focus-visible{box-shadow:inset 0 0 0 1px var(--amber)}
+.cbc-hud{position:absolute;right:8px;bottom:8px;display:flex;gap:4px;align-items:center}
+.cbc-hud .btn{min-height:24px;padding:0 8px;font-size:10px;border-radius:2px;
+  background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(2px)}
+.cbc-zoom{font-size:10px;color:var(--ink2);font-variant-numeric:tabular-nums;padding:0 4px}
+.cbc-hudl{position:absolute;left:8px;bottom:8px;display:flex;gap:5px;align-items:center;pointer-events:none}
+.cbc-hudl .cbc-cls{background:color-mix(in srgb,var(--card) 85%,transparent)}
+.cbc-crumb{position:absolute;left:8px;top:8px;display:flex;gap:6px;align-items:center;pointer-events:none;
+  font-size:10px;color:var(--ink2);background:color-mix(in srgb,var(--card) 85%,transparent);
+  border:1px solid var(--rule);border-radius:2px;padding:2px 7px}
+.cbc-crumb b{color:var(--ink);font-weight:600}
+.cbc-crumb.on{border-color:var(--amber);color:var(--amber)}
+
+/* ============ инспектор ============ */
+.cbc-f{margin-bottom:9px}
+.cbc-f:last-child{margin-bottom:0}
+.cbc-f>label{display:block;font-size:9px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--ink2);margin-bottom:3px}
+.cbc-f .input,.cbc-f select{width:100%;background:var(--canvas);font-size:11.5px;padding:4px 7px;border-radius:2px}
+.cbc-row{display:flex;gap:6px;align-items:center}
+.cbc-row .input{flex:1 1 auto;min-width:0}
+.cbc-nodet{display:flex;align-items:baseline;gap:6px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--rule)}
+.cbc-nodet .k{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2)}
+.cbc-nodet .v{font-size:12px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cbc-pick{display:flex;flex-wrap:wrap;gap:4px}
+.cbc-pick .btn{min-height:24px;padding:0 8px;font-size:10px;border-radius:2px}
+.cbc-chk{display:flex;align-items:flex-start;gap:6px;font-size:10.5px;color:var(--ink);line-height:1.4;cursor:pointer}
+.cbc-chk input{margin:2px 0 0;accent-color:var(--amber);flex:none}
+.cbc-acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:8px;border-top:1px solid var(--rule)}
+.cbc-acts .btn{min-height:26px;padding:0 9px;font-size:10.5px;border-radius:2px}
+.cbc-warn{color:var(--chart);font-size:10px;line-height:1.4;margin-top:4px}
+.cbc-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:9px}
+.cbc-stat{border:1px solid var(--rule);border-radius:2px;background:var(--canvas);padding:4px 6px}
+.cbc-stat b{display:block;font-size:14px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.2}
+.cbc-stat span{font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--ink2)}
+.cbc-hint{font-size:10px;color:var(--ink2);line-height:1.5;font-family:var(--mono)}
+
+/* ============ симуляция ============ */
+.cbc-simrow{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
+.cbc-simrow .btn{min-height:24px;padding:0 8px;font-size:10px;border-radius:2px}
+.cbc-mx{display:grid;gap:2px;font-size:10px;font-family:var(--mono);min-width:420px}
+.cbc-mh{color:var(--ink2);font-size:8.5px;letter-spacing:.5px;text-transform:uppercase;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cbc-mr{color:var(--ink);font-size:10px;padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cbc-mc{border:1px solid var(--rule);border-radius:2px;text-align:center;padding:2px 4px;color:var(--ink2);
+  font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+.cbc-mc.go{color:var(--ink);border-color:var(--ink2)}
+.cbc-mc.stop{color:var(--chart);border-color:var(--chart)}
+.cbc-verdict{font-size:10.5px;color:var(--ink2);line-height:1.45;margin:8px 0 0;font-family:var(--mono)}
+.cbc-verdict b{color:var(--ink)}
+.cbc-verdict.bad b{color:var(--chart)}
+.cbc-tl{margin-top:7px;display:flex;flex-direction:column;gap:1px;max-height:96px;overflow:auto;scrollbar-width:thin}
+.cbc-tl .l{font-size:10px;line-height:1.45;color:var(--ink2);font-family:var(--mono);white-space:pre-wrap}
+.cbc-tl .l.ok{color:var(--ink)}
+.cbc-tl .l.stop{color:var(--chart)}
+.cbc-tl .l.skip{text-decoration:underline dotted}
+.cbc-tl .l i{font-style:normal;color:var(--ink2);font-variant-numeric:tabular-nums}
+
+/* ============ журнал ============ */
+.cbc-ltbl{display:flex;flex-direction:column;gap:1px;min-height:0}
+.cbc-lrow{display:grid;grid-template-columns:50px minmax(0,1fr) minmax(0,.85fr) 58px auto;gap:8px;align-items:center;
+  font-family:var(--mono);font-size:10.5px;padding:3px 6px;border:1px solid transparent;border-radius:2px;
+  cursor:pointer;color:var(--ink);background:transparent;text-align:left;width:100%}
+.cbc-lrow:hover{background:var(--hover)}
+.cbc-lrow.sel{border-color:var(--amber);background:var(--hover)}
+.cbc-lrow .t{color:var(--ink2);font-variant-numeric:tabular-nums}
+.cbc-lrow .m,.cbc-lrow .w{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cbc-lrow .w{color:var(--ink2)}
+.cbc-lrow .s{font-variant-numeric:tabular-nums}
+.cbc-lrow .s.ok{color:var(--ink)}
+.cbc-lrow .s.err{color:var(--chart)}
+.cbc-tag{font-size:8.5px;border:1px solid var(--rule);border-radius:2px;padding:0 5px;color:var(--ink2);white-space:nowrap}
+.cbc-tag.path{border-color:var(--amber);color:var(--amber)}
+.cbc-det{min-height:0;display:flex;flex-direction:column}
+.cbc-detmeta{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:10px;color:var(--ink2);margin-bottom:7px;font-family:var(--mono)}
+.cbc-detmeta b{color:var(--ink);font-weight:600}
+.cbc-tr{display:flex;flex-wrap:wrap;gap:4px}
+.cbc-st{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--rule);border-radius:2px;
+  padding:1px 5px;font-size:9.5px;color:var(--ink2);background:var(--canvas);font-family:var(--mono);white-space:nowrap}
+.cbc-st i{font-style:normal;color:var(--ink2);font-variant-numeric:tabular-nums}
+.cbc-st b{color:var(--ink);font-weight:600}
+.cbc-st em{font-style:normal}
+.cbc-st em.win{color:var(--ink);font-weight:700}
+.cbc-st em.fail{color:var(--chart)}
+.cbc-st em.cond{color:var(--amber)}
+.cbc-st em.skip,.cbc-st em.miss,.cbc-st em.dangling{color:var(--ink2);text-decoration:underline dotted}
+.cbc-st em.stop,.cbc-st em.finish{color:var(--chart);font-weight:700}
+.cbc-st.tail{border-style:dashed}
+
+/* ============ контекстное меню ============ */
+.cbc-menu{position:fixed;z-index:90;min-width:180px;background:var(--card);border:1px solid var(--border-2,var(--rule));
+  border-radius:var(--cbc-r);padding:4px;box-shadow:0 14px 36px rgba(0,0,0,.45);font-family:var(--mono)}
+.cbc-menu .cbc-mi{display:block;width:100%;text-align:left;background:transparent;border:0;color:var(--ink);
+  font-family:var(--mono);font-size:10.5px;padding:5px 8px;border-radius:2px;cursor:pointer;line-height:1.4}
+.cbc-menu .cbc-mi:hover{background:var(--hover)}
+.cbc-menu .cbc-mi.danger{color:var(--chart)}
+.cbc-menu .cbc-mi kbd{float:right;color:var(--ink2);font-family:var(--mono);font-size:9px}
+.cbc-menu .cbc-ms{height:1px;background:var(--rule);margin:4px 2px}
+.cbc-menu .cbc-mt{font-size:8.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink2);padding:4px 8px 3px}
+
+/* ============ адаптив ============ */
+@media (max-width:1320px){
+  .cbc-main{grid-template-columns:170px minmax(0,1fr) 236px}
+  .cbc-bottom{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:1080px){
+  .cbc-main{grid-template-columns:minmax(0,1fr)}
+  .cbc-stage{height:clamp(300px,46vh,420px)}
+  .cbc-pane.cbc-pal,.cbc-pane.cbc-insp{max-height:none}
+}
+
+/* ============ шапка списка пресетов ============ */
+#panel-combos .combo-top{
+  display:flex;align-items:center;gap:var(--sec-gap);padding:var(--sec-y) var(--sec-x) 10px;
+  border-bottom:1px solid var(--rule);background:var(--card)}
+#panel-combos .combo-top-txt{display:flex;align-items:baseline;gap:10px;min-width:0;flex-wrap:wrap}
+#panel-combos .combo-top-txt h3{
+  margin:0;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:var(--ink)}
+#panel-combos .combo-top .hint{font-size:10px;color:var(--ink2);font-family:var(--mono);letter-spacing:.2px}
+#panel-combos .combo-top .btn{border-radius:2px;min-height:30px}
+#panel-combos #combo-empty{
+  display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
+  margin:var(--sec-y) var(--sec-x);padding:26px;border:1px dashed var(--rule);
+  border-radius:var(--cbc-r);background:var(--canvas);font-family:var(--mono)}
+#panel-combos #combo-empty .title{font-size:13px;font-weight:700;color:var(--ink);letter-spacing:.4px}
+#panel-combos #combo-empty .hint{font-size:10.5px;color:var(--ink2);max-width:420px;line-height:1.5}
+#panel-combos #combo-empty .btn{border-radius:2px}
+
+/* мини-чипы сводки в карточках списка */
+#panel-combos #combo-list .combo-sum{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+#panel-combos #combo-list .combo-sum .cbc-cls[data-c]{background:var(--canvas)}
+
+/* ============ журнал: строки + деталь в одной панели ============ */
+.cbc-jbody{display:grid;grid-template-rows:minmax(96px,1fr) auto;gap:0;min-height:0;flex:1 1 auto;min-height:0}
+.cbc-jdet{border-top:1px solid var(--rule);padding:9px;max-height:172px;overflow:auto;scrollbar-width:thin}
+.cbc-h .cbc-chk{margin:0 2px 0 auto;font-size:9.5px;letter-spacing:.3px;text-transform:none;flex:none}
+.cbc-h .cbc-chk input{margin:0 4px 0 0}
+.cbc-h .btn{flex:none;min-height:22px;padding:0 8px;font-size:9.5px}
+
+/* матрица: активный сценарий + кликабельность */
+.cbc-mc{cursor:pointer}
+.cbc-mc:hover{border-color:var(--ink2)}
+.cbc-mc.on{border-color:var(--amber);color:var(--ink);background:var(--hover)}
+
+/* холст: курсоры */
+.cbc-cv{cursor:grab}
+.cbc-cv:active{cursor:grabbing}

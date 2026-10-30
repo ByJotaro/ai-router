@@ -1,0 +1,30 @@
+autostart: false
+server:
+  host: 127.0.0.1
+  port: 9013
+  log_level: info
+admin_token: stand-admin-token-placeholder
+provider_defaults:
+  retry:
+    attempts: 1
+    backoff_ms: 50
+providers:
+  opencode:
+    type: openai-compatible
+    base_url: http://127.0.0.1:9099/v1
+    auth_mode: bearer
+    api_keys: [dummy-key-for-stand-000000]
+    user_agent: opencode/stand
+    models: [deepseek-v4.1-flash-free]
+    transport:
+      mode: pool
+      api_url: http://127.0.0.1:8788
+      pool_api: v2
+      fanout: 3
+      rounds: 2
+      cooldown_s: 60
+      per_request: true
+      direct_fallback: false
+      max_egress_inflight: 4
+      storm_collapse: false
+      wait_for_lease_s: 20

@@ -1,0 +1,74 @@
+/* prov-cards: компактные карточки провайдеров (v55 balance, прод-порт).
+   Только карточки: шапка (иконка 28px+имя+sub+бейдж), модели 1 ряд (2 пилюли + +N),
+   4 чипа статистики, тонкий бар 3px + uptime-строка 10px. Каталог/тулбар/хедеры не трогаем.
+   Скоуп #panel-providers, только var() токены. Файл ПОСЛЕ top08.css — равные селекты бьём порядком. */
+#panel-providers #prov-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))!important;gap:8px!important;align-items:start}
+#panel-providers .prov-card{position:relative;min-width:0;max-width:none;min-height:104px;height:auto;padding:8px 10px 7px;overflow:hidden}
+#panel-providers .prov-card::before{display:none;content:none}
+#panel-providers .prov-card .gc-top{display:flex;align-items:center;gap:8px;min-width:0}
+#panel-providers .prov-card .gc-ico{width:28px;height:28px;border-radius:8px;flex:none}
+#panel-providers .prov-card .pc-ico{width:28px;height:28px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--panel-3);border:1px solid var(--border-2);color:var(--text);font-size:13px}
+#panel-providers .prov-card .gc-tit{min-width:0;flex:1 1 auto}
+#panel-providers .prov-card .gc-name{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+#panel-providers .prov-card .gc-sub{font-size:var(--fs-3xs);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-providers .prov-card .badge{font-size:var(--fs-3xs);flex:none}
+#panel-providers .prov-card .gc-mods{display:flex!important;flex-wrap:nowrap;gap:4px;margin-top:6px;overflow:hidden;max-width:100%}
+#panel-providers .prov-card .gc-mods .model-pill{flex:none;max-width:15ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-3xs)}
+#panel-providers .prov-card .gc-mods .model-pill.more{flex:none;max-width:none}
+#panel-providers .prov-card .gc-meta{display:flex!important;flex-wrap:nowrap;gap:3px;margin-top:5px;overflow:hidden;min-height:0}
+#panel-providers .prov-card .gc-meta .chip{flex:none;white-space:nowrap;font-family:var(--mono);font-size:var(--fs-3xs);padding:1px 6px}
+#panel-providers .prov-card .gc-meta .chip .dot{display:none}
+#panel-providers .prov-card .gc-tok{display:none!important}
+#panel-providers .prov-card .gc-health{display:flex!important;align-items:center;gap:6px;margin-top:6px;min-height:0}
+#panel-providers .prov-card .gc-health .progress{flex:1;min-width:0;height:3px}
+#panel-providers .prov-card .gc-health .progress .bar{height:3px}
+#panel-providers .prov-card .gc-health .gc-pct{font-family:var(--mono);font-size:var(--fs-3xs);flex:none}
+#panel-providers .prov-card .gc-health.is-empty{display:none!important;margin:0!important;padding:0!important}
+#panel-providers .prov-card .pc-up{margin-top:4px;font-family:var(--mono);font-size:var(--fs-3xs);line-height:1.4;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel-providers .prov-card .pc-up b{color:var(--text);font-weight:600}
+#panel-providers .prov-card .pc-up .bad{color:var(--danger)}
+#panel-providers .prov-card .pc-up .ok{color:var(--ok)}
+
+/* ================= деталка провайдера: лента состояния + брейкер (синтез волны) =================
+   Канон главной: бумага/чернила/янтарь. Лента состояния сворачивается в одну
+   строку при «всё в порядке»; машина брейкера — состояния/причина/таймер. */
+.pd-band {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 4px 14px;
+  background: var(--card); border: 1px solid var(--rule); border-left: 3px solid var(--ink2);
+  border-radius: 8px; padding: 9px 12px; font-family: var(--mono); margin-bottom: 8px;
+}
+.pd-band.st-ok { border-left-color: var(--ok); }
+.pd-band.st-warn { border-left-color: var(--amber); }
+.pd-band.st-err { border-left-color: var(--danger); }
+.pd-band.st-healthy { grid-template-columns: minmax(0, 1fr); }
+.pd-band-k { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.pd-band-n { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); white-space: nowrap; }
+.pd-band-h { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--ink); }
+.pd-band.st-healthy .pd-band-h { font-style: normal; font-size: 12px; color: var(--ink2); }
+.pd-band-b { min-width: 0; }
+.pd-band-x { font-size: 11px; color: var(--ink); line-height: 1.45; }
+.pd-band-a { font-size: 10.5px; color: var(--ink2); margin-top: 2px; }
+.pd-band-track { grid-column: 1 / -1; display: flex; gap: 4px; margin-top: 6px; }
+.pd-band-track span { flex: 1; height: 3px; border-radius: 2px; background: var(--rule); }
+.pd-band-track span.on { background: var(--amber); }
+.pd-brk { font-family: var(--mono); margin-bottom: 8px; }
+.pd-brk-flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.pd-brk-node { font-size: 10.5px; color: var(--ink2); border: 1px solid var(--rule); border-radius: 99px; padding: 2px 9px; }
+.pd-brk-node.on { color: var(--ink); border-color: var(--ink2); background: var(--card2); }
+.pd-brk-node.open.on { border-color: var(--danger); color: var(--danger); }
+.pd-brk-node.half.on { border-color: var(--amber); color: var(--amber); }
+.pd-brk-node.closed.on { border-color: var(--ok); color: var(--ok); }
+.pd-brk-flow i { color: var(--rule); font-style: normal; }
+.pd-brk-facts { display: flex; gap: 14px; flex-wrap: wrap; font-size: 10.5px; color: var(--ink2); }
+.pd-brk-facts b { color: var(--ink); }
+.pd-brk-facts code { font-size: 10.5px; color: var(--chart); }
+.pd-brk-cd { font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* ключи: кромка состояния (v1) */
+.kv-row { border-left: 3px solid transparent; }
+.kv-row.is-rev { border-left-color: var(--danger); }
+.keys-scroll .kv-row { padding-left: 10px; }
+/* пул-ключи: кромка кулдауна + бейдж */
+.kv-row.is-cd { border-left-color: var(--amber); }
+.kv-row.is-off { border-left-color: var(--rule); }
+.kv-cd-title b { font-variant-numeric: tabular-nums; color: var(--ink); }

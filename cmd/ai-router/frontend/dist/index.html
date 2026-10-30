@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="OmniGate — панель ядра ai-router: провайдеры, ключи, использование, журналы и прокси">
+<meta name="theme-color" content="#0a0a0b">
+<title>OmniGate — панель ядра</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="./css/tokens.css">
+<link rel="stylesheet" href="./css/shell.css">
+<link rel="stylesheet" href="./css/home.css">
+<link rel="stylesheet" href="./css/tabtheme.css">
+<link rel="stylesheet" href="./css/top08.css">
+<link rel="stylesheet" href="./css/prov-cards.css">
+<link rel="stylesheet" href="./css/prov-lanes.css">
+<link rel="stylesheet" href="./css/combo.css">
+<link rel="stylesheet" href="./css/w09-deck.css">
+<link rel="stylesheet" href="./css/w01-core.css">
+<link rel="stylesheet" href="./css/w01-logs.css">
+<link rel="stylesheet" href="./css/logs-bar.css">
+<link rel="stylesheet" href="./css/w01-proxies.css">
+<link rel="stylesheet" href="./css/w01-settings.css">
+<link rel="stylesheet" href="./css/mix-settings.css">
+
+</head>
+<body data-top="8">
+<a class="skip-link" href="#main">Перейти к содержимому</a>
+<nav class="sidebar" aria-label="Основная навигация">
+  <div class="brand">
+    <div class="logo"></div>
+    <div class="t"><strong>OmniGate</strong><small>ai-router</small></div>
+  </div>
+  <div class="tabs" id="tabs" role="group" aria-label="Разделы панели">
+    <button class="tab active" data-tab="home" title="Главная" aria-current="page"><span class="ic" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span class="tspan">Главная</span></button>
+    <button class="tab" data-tab="providers" title="Провайдеры"><span class="ic" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg></span><span class="tspan">Провайдеры</span><span class="cnt" id="cnt-prov" style="display:none">0</span><span class="cnt" id="cnt-prov-live" title="рабочих / всего" style="display:none"></span></button>
+    <button class="tab" data-tab="combos" title="Комбо"><span class="ic" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg></span><span class="tspan">Комбо</span></button>
+    <button class="tab" data-tab="usage" title="Использование"><span class="ic" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span><span class="tspan">Использование</span></button>
+    <button class="tab" data-tab="logs" title="Журналы"><span class="ic" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></span><span class="tspan">Журналы</span></button>
+    <button class="tab" data-tab="proxies" title="Прокси"><span class="ic" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg></span><span class="tspan">Прокси</span></button>
+    <button class="tab" data-tab="settings" title="Настройки"><span class="ic" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span><span class="tspan">Настройки</span></button>
+  </div>
+  <div class="side-foot">
+    <div class="dot-wrap"><span class="dot" id="foot-dot"></span><span class="foottext" id="foot-status">…</span></div>
+    <div class="ver" id="ver">v—</div>
+  </div>
+</nav>
+
+<main class="main" id="main" tabindex="-1">
+  <div class="content">
+    <!-- ================= HOME ================= -->
+    <section class="tab-panel active" id="panel-home">
+      <div class="hd">
+        <div class="brand"><div class="k">ai-router · главная</div><h1>Сводка <em>за 30 дней</em></h1></div>
+        <div class="meta" id="home-meta" title="">…</div>
+        <div class="themes" id="home-themes" role="group" aria-label="Тема"></div>
+        <div class="live" id="home-live"><i></i><span id="home-live-txt">● LIVE</span></div>
+      </div>
+      <div class="kpis" id="home-kpis"></div>
+      <div class="chart">
+        <div class="cap"><span id="home-chart-cap">Токены · 30 дней</span><span id="home-chart-range"></span></div>
+        <div id="home-chart" role="img" aria-label="График использования за 30 дней"><svg id="home-svg" width="100%" height="264" preserveAspectRatio="none" aria-hidden="true"></svg></div><div id="home-tip"></div><div id="home-legend"></div>
+      </div>
+
+      <div class="bottom">
+        <div class="cal">
+          <div class="sec-t" id="home-cal-cap">Активность — 12 месяцев <i>токены по дням</i><span class="spacer"></span><button class="btn sm ghost" id="home-hm-all" title="Открыть годовой календарь в разделе «Использование»">год →</button></div>
+          <div class="astats" id="home-astats"></div>
+          <div class="monthline" id="home-monthline"></div>
+          <div id="home-hm"><div class="state compact"><div class="hint">считаем активность…</div></div></div>
+        </div>
+        <div class="tops">
+          <div class="sec-t" title="Топ-3 модели за 90 дней · клик — фильтр Журналов">Топ-3 модели <i>90 дн · клик — фильтр</i><span class="spacer"></span><button class="btn sm ghost" id="home-tops-all" title="Открыть полную аналитику в разделе «Использование»">все →</button></div>
+          <div id="home-tops"><div class="state compact"><div class="hint">считаем топы…</div></div></div>
+          <div class="hint">клик — фильтр Журналов · Enter — то же</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= PROVIDERS ================= -->
+    <section class="tab-panel" id="panel-providers">
+      <div class="hd">
+        <div class="brand"><div class="k">ai-router · провайдеры</div><h1>Провайдеры <em id="prov-hd-count"></em></h1></div>
+        <div class="meta" id="prov-meta" title="">…</div>
+        <div class="live" id="prov-live"><i></i><span id="prov-live-txt">● LIVE</span></div>
+      </div>
+      <div class="view" id="provList">
+        <div class="card section prov-toolbar">
+        <div class="prov-tools">
+          <div class="search-wrap" style="max-width:340px"><input id="prov-search" class="input" placeholder="Поиск провайдера или модели…" autocomplete="off" aria-label="Поиск провайдера или модели"><button class="btn sm ghost prov-x" id="prov-x" title="Очистить поиск (Esc)" aria-label="Очистить поиск" hidden>✕</button></div>
+          <select id="prov-sort" class="input" style="min-width:150px;width:auto" aria-label="Сортировка провайдеров">
+            <option value="name">По имени</option>
+            <option value="healthy">Живые ключи</option>
+            <option value="keys">Число ключей</option>
+            <option value="latency">Латентность</option>
+            <option value="tier">Тир</option>
+          </select>
+          <button class="btn btn--pill primary" id="prov-add" title="Добавить openai-совместимый провайдер">+ Провайдер</button>
+        </div>
+        <div class="prov-filters" id="prov-filters" role="group" aria-label="Фильтр провайдеров по состоянию">
+          <button class="btn active" data-f="all" aria-pressed="true" title="Все настроенные провайдеры (каталог ненастроенных не входит)">Все <span class="fc" data-fc="all"></span></button>
+          <button class="btn" data-f="online" aria-pressed="false" title="Живые ключи есть и брейкер закрыт; провайдеры без ключей (pct −1) и каталог сюда не входят">В сети <span class="fc" data-fc="online"></span></button>
+          <button class="btn" data-f="offline" aria-pressed="false" title="Нет ключей (pct −1), все ключи в бэкоффе или брейкер открыт; проба (half-open) — в фильтре Брейкер; каталог не входит">Пауза <span class="fc" data-fc="offline"></span></button>
+          <button class="btn" data-f="breaker" aria-pressed="false" title="Брейкер открыт или полуоткрыт (half-open); каталог не считается">Брейкер <span class="fc" data-fc="breaker"></span></button>
+        </div>
+        <div class="hint" id="prov-result" style="margin-top:8px"></div>
+        </div>
+        <div id="prov-loading"><div class="grid prov-grid">
+          <div class="card"><div class="skeleton" style="height:14px;width:60%"></div><div class="skeleton" style="height:10px;width:90%;margin-top:12px"></div><div class="skeleton" style="height:6px;border-radius:20px;margin-top:12px"></div></div>
+          <div class="card"><div class="skeleton" style="height:14px;width:70%"></div><div class="skeleton" style="height:10px;width:80%;margin-top:12px"></div><div class="skeleton" style="height:6px;border-radius:20px;margin-top:12px"></div></div>
+          <div class="card"><div class="skeleton" style="height:14px;width:55%"></div><div class="skeleton" style="height:10px;width:85%;margin-top:12px"></div><div class="skeleton" style="height:6px;border-radius:20px;margin-top:12px"></div></div>
+        </div></div>
+        <div class="grid prov-grid" id="prov-grid"></div>
+        <div class="state empty" id="prov-empty" style="display:none">
+          <div class="big" aria-hidden="true">◈</div>
+          <div class="title">Не найдено</div>
+          <div class="hint">Измените поиск или фильтр. Если провайдеры не настроены — добавьте их в конфигурации «Настройки → провайдеры».</div>
+        </div>
+      </div>
+      <div class="view" id="provDetail" style="display:none">
+        <div class="backbar">
+          <button class="icon-btn" id="prov-back" title="Назад к списку">←</button>
+          <h1><span class="breadcrumb">Провайдер</span> <span id="pd-name">—</span></h1>
+        </div>
+        <div class="detail-hero" id="pd-hero"><div class="state"><div class="big" aria-hidden="true">↻</div><div class="title">Загрузка…</div></div></div>
+      </div>
+    </section>
+
+    <!-- ================= COMBOS ================= -->
+    <section class="tab-panel" id="panel-combos">
+      <div class="hd">
+        <div class="brand"><div class="k">ai-router · комбо</div><h1>Комбо-пресеты</h1></div>
+        <div class="meta" id="combo-meta" title="">каскад провайдеров с фоллбэком · <span id="combo-count">—</span></div>
+        <div class="live" id="combo-live"><i></i><span id="combo-live-txt">● LIVE</span></div>
+      </div>
+      <div class="combo-top">
+        <div class="combo-top-txt"><span class="hint">шаги слева направо, стрелка — переход при сбое · новые сверху</span></div>
+        <span class="spacer"></span>
+        <button class="btn btn--pill primary" id="combo-new">+ Новый пресет</button>
+      </div>
+      <div id="combo-list" role="list" aria-label="Комбо-пресеты"></div>
+      <div class="state empty" id="combo-empty" style="display:none">
+        <div class="title">Нет комбо-пресетов</div>
+        <div class="hint">Создайте цепочку провайдеров: при отказе первого запрос перейдёт к следующему.</div>
+        <div><button class="btn btn--pill primary" id="combo-empty-new">Создать первый пресет</button></div>
+      </div>
+      <div id="combo-editor"></div></section>
+    <!-- ================= USAGE ================= -->
+<section class="tab-panel" id="panel-usage">
+      <div class="hd">
+        <div class="brand"><div class="k">ai-router · использование</div><h1>Колода <em>дней</em></h1></div>
+        <div class="meta" id="usage-meta" title="">30 дней · токены · выбран последний день</div>
+        <div class="live" id="usage-live"><i></i><span id="usage-live-txt">● LIVE</span></div>
+      </div>
+
+      <div id="usage-kpis"></div>
+
+      <div class="card section w09-chart">
+        <div class="w09-chart-cap"><span class="w09-cap-t" id="usage-chart-cap">Токены · 30 дней</span></div>
+        <div class="segswitch" id="usage-seg" role="group" aria-label="Метрика динамики">
+          <button data-m="tokens" data-v="tokens" aria-pressed="true">токены</button>
+          <button data-m="reqs" data-v="reqs" aria-pressed="false">запросы</button>
+          <button data-m="cost" data-v="cost" aria-pressed="false">стоимость</button>
+        </div>
+        <div class="w09-chart-host">
+          <div class="chart-box usage-ember" id="usage-chart-box" role="img" aria-label="Динамика 30 дней: ломаная точка-в-точку"><svg id="usage-svg" width="100%" height="264" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+          <div id="usage-tip" class="tip" role="tooltip" aria-hidden="true"></div>
+        </div>
+        <div id="usage-legend" class="chart-legend"></div>
+        <div class="w09-barfoot">
+          <span class="w09-hint" id="usage-chart-range">—</span>
+          <span class="w09-sp"></span>
+          <span class="w09-hint" id="usage-chart-note">выбран «последний день»</span>
+        </div>
+      </div>
+
+      <div class="card section" id="usage-calwrap">
+        <div class="w09-bar">
+          <span class="w09-idx">вид <b id="usage-cal-cap">календарь</b></span>
+          <span class="w09-sp"></span>
+          <div class="segswitch" id="usage-view-seg" role="group" aria-label="Вид динамики">
+            <button data-v="trend" class="on" aria-pressed="true">ломаная</button>
+            <button data-v="cal" aria-pressed="false">календарь</button>
+          </div>
+        </div>
+        <div class="w09-cal" id="usage-cal"></div>
+      </div>
+
+      <div class="card section w09-deckwrap" id="usage-deck" data-w09-deck="usage">
+        <div class="w09-bar">
+          <button class="w09-nav" data-w09="first" title="Первый день (Home)">«</button>
+          <button class="w09-nav" data-w09="prev" title="Предыдущий день (←)">←</button>
+          <span class="w09-idx">день <b data-w09-idx>—</b></span>
+          <button class="w09-nav" data-w09="next" title="Следующий день (→)">→</button>
+          <button class="w09-nav" data-w09="last" title="Последний день (End)">»</button>
+          <span class="w09-sp"></span>
+          <span class="w09-hint">главный объект — карточка одного дня · переключение ‹ › ← → · полоска и лента ниже</span>
+        </div>
+        <div id="usage-card"></div>
+        <div id="usage-strip"></div>
+        <div class="w09-list" id="usage-list"></div>
+      </div>
+    </section>
+
+    <!-- ================= LOGS ================= -->
+<section class="tab-panel" id="panel-logs">
+      <div class="hd">
+        <div class="brand"><div class="k">ai-router · журнал</div><h1>Журналы <em>запросов и egress</em></h1></div>
+        <div class="meta" id="logs-meta" title="источник: S.logs (запросы) / S.plogs (события egress)">лента плотности + точные строки</div>
+        <div class="live" id="logs-live"><i></i><span id="logs-live-txt">● LIVE</span></div>
+      </div>
+      <div class="w01-wrap">
+        <div class="lg-tools" data-sticky>
+          <div class="lg-seg" id="log-kind-seg" role="group" aria-label="Источник журнала">
+            <button type="button" class="on" data-k="request" aria-pressed="true">запросы</button>
+            <button type="button" data-k="proxies" aria-pressed="false">egress</button>
+          </div>
+          <div class="lg-search">
+            <span class="lg-slash" aria-hidden="true">/</span>
+            <input id="log-search" type="search" autocomplete="off" spellcheck="false" placeholder="модель, провайдер, rid…" aria-label="Поиск по журналу">
+            <button type="button" class="lg-x" id="log-search-x" title="Очистить поиск (Esc)" aria-label="Очистить поиск" hidden>✕</button>
+          </div>
+          <div class="lg-lv" id="log-lvchips" role="group" aria-label="Уровни записей">
+            <button type="button" class="chip w01-lvl-info on" data-lv="info" aria-pressed="true" title="обычные записи"><i class="lg-dot i"></i>ok<b data-lvc="info">0</b></button>
+            <button type="button" class="chip w01-lvl-warn on" data-lv="warn" aria-pressed="true" title="медленные записи"><i class="lg-dot w"></i>медл<b data-lvc="warn">0</b></button>
+            <button type="button" class="chip w01-lvl-error on" data-lv="error" aria-pressed="true" title="ошибки"><i class="lg-dot e"></i>err<b data-lvc="error">0</b></button>
+          </div>
+          <button class="lg-focus" type="button" id="w01-log-focus" hidden title="Показан только выбранный интервал ленты — нажмите, чтобы снять">окно</button>
+          <span class="lg-sp"></span>
+          <span class="lg-pause" id="logs-paused" role="button" tabindex="0" hidden title="Идёт чтение: автообновление приостановлено. Нажмите, чтобы вернуть">⏸ пауза чтения</span>
+          <button class="btn sm" type="button" id="log-export" title="Выгрузить выбранное окно в CSV">экспорт CSV</button>
+          <button class="btn sm ghost" type="button" id="log-clear" title="Очистить журнал выбранной ветки">очистить</button>
+        </div>
+        <div class="w01-sbar" id="w01-log-stats"></div>
+        <div id="log-table" class="w01-logtable" role="region" aria-label="Записи журнала"></div>
+        <div class="w01-note" id="w01-log-note"></div>
+        <div class="w01-tip" id="w01-log-tip"></div>
+      </div>
+    </section>
+
+    <!-- ================= PROXIES ================= -->
+<section class="tab-panel" id="panel-proxies">
+      <div class="hd">
+        <div class="brand"><div class="k">ai-router · egress</div><h1>Прокси <em>пул каналов</em></h1></div>
+        <div class="meta" id="proxies-meta" title="источник: S.proxy (ProxyStatus) / S.plogs (ProxiesLogs)">каналы, задержки, бэкенды WARP</div>
+        <div class="live" id="proxies-live"><i></i><span id="proxies-live-txt">● LIVE</span></div>
+      </div>
+      <div class="w01-wrap" id="proxy-panel">
+        <div class="w01-egbox" id="w01-px">
+          <div class="w01-nums" id="w01-eg-nums"></div>
+          <div class="w01-egbox" id="w01-eg-poolbox">
+            <div class="w01-box-h">
+              <span class="w01-box-t">Профиль задержек каналов</span>
+              <span class="w01-box-s">вертикаль — задержка канала · линия — живые · обрыв и ✕ — мёртвые · клик — закрепить</span>
+            </div>
+            <div class="w01-poolhost" id="w01-eg-pool"></div>
+          </div>
+          <div class="w01-egbox" id="w01-eg-chanbox">
+            <div class="w01-box-h">
+              <span class="w01-box-t">Полосы каналов</span>
+              <span class="w01-box-s">спарклайн — замеры из окна egress-событий; при одном замере рисуется его уровень</span>
+            </div>
+            <div class="w01-chanlist" id="w01-eg-chans"></div>
+          </div>
+          <div class="w01-nums" id="w01-eg-warpline"></div>
+          <div class="w01-egbox">
+            <div class="w01-box-h">
+              <span class="w01-box-t">Бэкенды WARP</span>
+              <span class="w01-box-s" id="w01-eg-bmeta">—</span>
+            </div>
+            <div class="w01-bstriphost" id="w01-eg-bstrip"></div>
+          </div>
+          <div class="w01-nums" id="w01-eg-evline"></div>
+          <div class="w01-note" id="w01-eg-note"></div>
+          <div class="w01-state" id="w01-eg-state" hidden></div>
+          <div class="w01-tip" id="w01-eg-tip"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SETTINGS ================= -->
+<section class="tab-panel" id="panel-settings">
+      <div class="hd">
+        <div class="brand"><div class="k">ai-router · конфиг</div><h1>Настройки <em>ядра</em></h1></div>
+        <div class="meta" id="settings-meta" title="источник: S.cfg (GetConfig) · запись: SaveConfig">полотно шкал конфига</div>
+        <div class="live" id="settings-live"><i></i><span id="settings-live-txt">● LIVE</span></div>
+      </div>
+      <div class="w01-wrap">
+        <div class="w01-cfbar">
+          <span class="w01-chip" id="w01-cf-dirty" role="status">синхронно</span>
+          <span class="spacer"></span>
+          <button class="w01-btn" type="button" id="w01-cf-revert" title="Вернуть значения, загруженные из ядра">откатить правки</button>
+          <button class="btn primary sm" type="button" id="w01-cf-save" title="Записать S.cfg в ядро (SaveConfig)">сохранить в ядро</button>
+        </div>
+        <div class="w01-block" id="settings-editor"></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<div id="toast-wrap" role="status" aria-live="polite"></div>
+
+<!-- ================= APP STATE / MACRO-BUS ================= -->
+<script src="./js/core.js"></script>
+<script src="./js/shared.js"></script>
+<script src="./js/home.js"></script>
+<script src="./js/providers.js"></script>
+
+
+
+
+
+
+
+<script src="./js/w09-deck.js"></script>
+<script src="./js/w09-usage.js"></script>
+<script src="./js/w01-core.js"></script>
+<script src="./js/w01-logs.js"></script>
+<script src="./js/w01-proxies.js"></script>
+<script src="./js/w01-settings.js"></script>
+<script src="./js/shell.js"></script>
+<script src="./js/combo.js"></script>
+<script src="./js/prov-cards.js"></script>
+<script src="./js/prov-lanes.js"></script>
+<script src="./js/top08.js"></script>
+</body>
+</html>

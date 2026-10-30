@@ -1,0 +1,56 @@
+/* Variant 08 "Flow": decorator over home .toprow (smooth Catmull-Rom spark under text),
+width method as main (viewBox = row width, no 120->100% stretch),
+single top border on first row, bottom by formula (flex-start + pb:25, 747=747 PIL-verified). */
+body[data-top="8"] #panel-home .bottom .tops{display:flex;flex-direction:column;align-self:stretch;min-height:0}
+body[data-top="8"] #panel-home .bottom .tops > .hint{display:none}
+/* Layer order: shell < home < top08. Keep margin-bottom:32 (776=776, PIL-verified). */
+body[data-top="8"] #panel-home #home-tops {
+  position:relative;
+  display:flex;flex-direction:column;gap:0;flex:1 1 auto;min-height:0;justify-content:flex-start;
+  border:0;border-top:0;margin-top:0;margin-bottom:0;padding-top:0;
+}
+/* Delta over home .toprow: room for the graph only.
+ Формула: 3 строки × 1px = 3px → 750→747 = граница сетки. space-between/margin-магия удалены. */
+body[data-top="8"] #panel-home #home-tops .toprow {
+  position:relative;
+  overflow:visible;
+  padding-bottom:25px;
+}
+body[data-top="8"] #panel-home #home-tops .toprow .rk {
+  font-size:13px;font-weight:700;color:var(--amber);
+  font-variant-numeric:tabular-nums;position:relative;z-index:1;
+}
+body[data-top="8"] #panel-home #home-tops .toprow .m {
+  font-family:var(--sans);
+  font-size:13px;font-weight:600;color:var(--ink);
+  position:relative;z-index:1;
+}
+body[data-top="8"] #panel-home #home-tops .toprow .n {
+  font-size:13px;font-weight:600;color:var(--ink);
+  font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;
+  position:relative;z-index:1;
+}
+body[data-top="8"] #panel-home #home-tops .toprow .sub {
+  display:block;grid-column:2/4;
+  font-size:11px;color:var(--ink2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;
+  position:relative;z-index:1;
+}
+body[data-top="8"] #panel-home #home-tops .toprow .bar {display:none}
+/* Spark 1:1 line/fill via --chart; absolute under text, height ignored by layout. */
+body[data-top="8"] #panel-home #home-tops .toprow svg.spark {
+  position:absolute;left:8px;right:8px;bottom:2px;z-index:0;
+  display:block;width:calc(100% - 16px);height:24px;
+  margin:0;pointer-events:none;opacity:1;overflow:visible;
+}
+body[data-top="8"] #panel-home #home-tops .toprow svg.spark path.flow-line,
+body[data-top="8"] #panel-home #home-tops .toprow svg.spark polyline {
+  fill:none;stroke:var(--chart);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;
+}
+body[data-top="8"] #panel-home #home-tops .toprow svg.spark path.flow-fill,
+body[data-top="8"] #panel-home #home-tops .toprow svg.spark polygon {
+  fill:color-mix(in srgb,var(--chart) 12%,transparent);stroke:none;
+}
+body[data-top="8"] #panel-home #home-tops .toprow svg.spark circle {
+  fill:var(--chart);
+}

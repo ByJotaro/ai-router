@@ -1,0 +1,202 @@
+
+/* ============================================================
+   TOKEN SYSTEM — тёмная палитра с дисциплиной
+   Базовый фон #0b0e14; весь текст ≥4.5:1 (WCAG AA) на всех поверхностях
+   (--bg/--panel/--panel-2/--panel-3). Типографика: единая шкала
+   10 / 11 / 12 / 13 / 15 / 20 / 30px (--fs-*), межстрочные 1.4+.
+   ============================================================ */
+:root{
+  /* ---- Mono: чёрный фон, белый текст, красный акцент ---- */
+  --bg:        #0a0a0b;
+  --bg-grad-1: #101013;
+  --bg-grad-2: #0a0a0b;
+  --panel:     #131315;
+  --panel-2:   #1a1a1d;
+  --panel-3:   #232326;
+  --glass:     rgba(26,26,29,.72);
+  --border:    #26262a;
+  --border-2:  #35353b;
+  --accent:    #e5484d;
+  --accent-2:  #f76b6f;
+  --accent-grad: linear-gradient(135deg,#e5484d,#f76b6f);
+  --accent-dim:#3a1517;
+  --accent-ink:#ffffff;
+  --accent-soft:#1d1113;
+  --ok:        #e8e8e8;
+  --ok-dim:    #2a2a2d;
+  --warn:      #a8a8ad;
+  --warn-dim:  #232326;
+  --danger:    #e5484d;
+  --danger-dim:#3a1517;
+  --info:      #c9c9cf;
+  --info-dim:  #232326;
+  --violet:    #8e8e96;
+  --text:      #f5f5f5;
+  --text-2:    #d4d4d4;
+  --muted:     #9a9aa0;
+  --faint:     #6e6e76;
+
+  --heat-cold: #1c1c1f;
+  --heat-hot:  #e5484d;
+
+  --fs-3xs: 10px;
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 20px;
+  --fs-xl: 30px;
+
+  --mono: "Cascadia Mono","SF Mono",Consolas,"Roboto Mono",monospace;
+  --sans: "Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  --serif: "Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif;
+  --paper: #0a0a0b;
+  --ink: #f5f5f5;
+
+  --r-sm: 8px; --r: 12px; --r-lg: 16px;
+  /* Единый ритм секций (формулы вместо попиксельных правок):
+     бока --sec-x:20px, вертикаль --sec-y:14px, зазоры --sec-gap:10px,
+     карта --card-p:10px 14px, заголовок --sec-pb:4px/--sec-mb:8px (gap 24px). */
+  --sec-x: 20px;
+  --sec-y: 14px;
+  --sec-gap: 10px;
+  --card-p: 10px 14px;
+  --sec-pb: 4px;
+  --sec-mb: 8px;
+  --tr: 140ms ease;
+  --tr-m: 140ms cubic-bezier(.22,.61,.36,1);
+  --tr-mid: var(--tr-m);
+}
+/* scoped 220ms только для моушн-поверхностей; глобалка остаётся 140ms */
+.dd-list,.x-panel,#modal .ov,#modal .md,.tab-panel.active,.view{--tr-m:220ms cubic-bezier(.22,.61,.36,1);--tr-mid:var(--tr-m)}
+:root{
+  --g50-motion-dur-fast: 140ms;
+  --g50-motion-dur-mid: 220ms;
+  --g50-motion-ease: cubic-bezier(.22,.61,.36,1);
+  --shadow: 0 1px 0 rgb(0 0 0/.3), 0 8px 24px rgb(0 0 0/.5);
+  --glow: 0 0 20px rgba(229,72,77,.22);
+}
+/* G50-P0-2 ThemeTokensPolish: AA-варианты + различитель тем */
+:root{
+  --g50-faint-aa:#a3a3ab;
+  --g50-focus:#ff7a7e;
+  --g50-keyless-bd:#e5484d;
+  --g50-pill-track:#0a84ff;
+  --g50-ok:#3ddc84;
+  --g50-warn:#ffb224;
+  --g50-heat-cold:rgba(255,255,255,.08);
+  --g50-heat-0:rgba(229,72,77,.20);
+  --g50-heat-1:rgba(229,72,77,.28);
+  --g50-heat-2:rgba(229,72,77,.40);
+  --g50-heat-3:rgba(229,72,77,.60);
+  --g50-heat-4:rgba(229,72,77,.90);
+}
+/* G50-P0-3 TypographyScale A: display-ступень + мера строки */
+:root{
+  --g50-typo-display:28px;
+  --g50-typo-measure:68ch;
+  --g50-typo-micro:11px;
+  --g50-loading-shimmer:rgba(255,255,255,.05);
+  --g50-loading-dur:1.6s;
+  --g50-logs-pad-y-comf: 8px;
+  --g50-logs-pad-x-comf: 12px;
+  --g50-logs-pad-y-comp: 3px;
+  --g50-logs-pad-x-comp: 10px;
+  --g50-logs-row-h-comf: 34px;
+  --g50-logs-row-h-comp: 26px;
+  --g50-logs-zebra: rgba(255,255,255,.022);
+  --g50-logs-ts-w: 11ch;
+  --g50-logs-err-w: 2px;
+  --g50-empty-max: 420px;
+  --g50-empty-gap: 10px;
+  --g50-empty-actions-gap: 8px;
+  --g50-err-accent: var(--danger);
+  --g50-err-act-gap: 8px;
+  --g50-err-maxw: 420px;
+  --g50-icons-size:16px;
+}
+
+/* ---- БД (mono): чёрный + белый + тёмно-красный. Никаких серо-зелёных/янтарных/фосфорных примесей:
+   фон/панели — нейтральный чёрный, текст — белый, единственный акцент — тёмно-красный #8f1d22.
+   Шрифты: Inter Tight (текст/заголовки) + JetBrains Mono (цифры/код/метки). */
+body[data-theme="mono"]{
+  --sans:"Inter Tight","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  --serif:"Inter Tight","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono","SF Mono",Consolas,monospace;
+  --bg:        #121214;
+  --bg-grad-1: #1e1e22;
+  --bg-grad-2: #121214;
+  --panel:     #1a1a1e;
+  --panel-2:   #212125;
+  --panel-3:   #2a2a30;
+  --glass:     rgba(26,26,30,.85);
+  --border:    #303036;
+  --border-2:  #43434b;
+  --accent:    #b02027;
+  --accent-2:  #d63a41;
+  --accent-grad: linear-gradient(135deg,#8f1d22,#c22a31);
+  --accent-dim:#330d10;
+  --accent-ink:#ffffff;
+  --accent-soft:#17090a;
+  --ok:        #f2f2f2;
+  --ok-dim:    #2b2b2f;
+  --warn:      #d8d8d8;
+  --warn-dim:  #2b2b2f;
+  --danger:    #c22a31;
+  --danger-dim:#330d10;
+  --info:      #e3e3e3;
+  --info-dim:  #2b2b2f;
+  --violet:    #cfcfcf;
+  --text:      #f7f7f7;
+  --text-2:    #d9d9d9;
+  --muted:     #b5b5b5;
+  --faint:     #84848a;
+  --heat-cold: #222226;
+  --heat-hot:  #8f1d22;
+
+  --paper:#141416; --card:#1a1a1e; --card2:#212125;
+  --ink:#f7f7f7; --ink2:#b5b5b5; --rule:#303036;
+  --amber:#c22a31; --pool:#e3e3e3; --red:#c22a31; --green:#f2f2f2;
+  --cell0:#222226; --hd:#141416; --canvas:#121214;
+  --chart:#c22a31; --ring:#f7f7f7;
+  --lv1:#3d1114; --lv2:#5c161b; --lv3:#7a1d22; --lv4:#8f1d22; --lv5:#b02027;
+  --barfill:#c22a31; --brand:#c22a31; --hover:rgba(194,42,49,.10);
+  --chart-line:#c22a31; --chart-ring:#f7f7f7;
+}
+/* БД-графит: фон чуть светлее (#121214), карточки светлее фона (panel #1a1a1e).
+ 45° едва заметные полосы с чуть разным размером: период 30px — 2px полоса .014 + 3px полоса .010.
+ Формула одна на всех: лежат на ВИДИМЫХ слоях (.content/.sidebar/любая .tab-panel непрозрачные, перекрывают body).
+ Карточки (.card/.kpi) сплошные — полосы только в зазорах. */
+body[data-theme="mono"]{background:var(--bg);
+ background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.014) 0 2px,transparent 2px 18px,rgba(255,255,255,.010) 18px 21px,transparent 21px 30px)}
+body[data-theme="mono"] .content{background-color:var(--bg);
+ background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.014) 0 2px,transparent 2px 18px,rgba(255,255,255,.010) 18px 21px,transparent 21px 30px)}
+body[data-theme="mono"] .sidebar{background-color:var(--panel);
+ background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.010) 0 2px,transparent 2px 18px,rgba(255,255,255,.007) 18px 21px,transparent 21px 30px)}
+body[data-theme="mono"] .tab-panel{background-color:var(--paper);
+ background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.012) 0 2px,transparent 2px 18px,rgba(255,255,255,.008) 18px 21px,transparent 21px 30px)}
+body[data-theme="mono"] .sidebar,body[data-theme="mono"] .main{position:relative;z-index:1}
+/* БД: жёсткие Consolas-фолбэки — формулой, не allowlist: в теме mono ВЕСЬ моноширинный
+ текст идёт через var(--mono). Новые селекторы дописывать НЕ нужно. */
+body[data-theme="mono"] .tab-panel,
+body[data-theme="mono"] .tab-panel .kpi,
+body[data-theme="mono"] .tab-panel .kpi .val,
+body[data-theme="mono"] .tab-panel .kpi .delta,
+body[data-theme="mono"] .tab-panel .kpi .sub,
+body[data-theme="mono"] .tab-panel .toprow,
+body[data-theme="mono"] .tab-panel .toprow .rk,
+body[data-theme="mono"] .tab-panel table,
+body[data-theme="mono"] .tab-panel code,
+body[data-theme="mono"] .tab-panel .mono,
+body[data-theme="mono"] .combo-step,
+body[data-theme="mono"] .model-pill,
+body[data-theme="mono"] .segswitch button,
+body[data-theme="mono"] .noc-table,
+body[data-theme="mono"] .noc-table th,
+body[data-theme="mono"] .noc-table td,
+body[data-theme="mono"] .feed-row,
+body[data-theme="mono"] .meta-box,
+body[data-theme="mono"] .chip,
+body[data-theme="mono"] .badge,
+body[data-theme="mono"] .btn{font-family:var(--mono)}
+
