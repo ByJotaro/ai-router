@@ -115,11 +115,11 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		writeResponsesErr(w, http.StatusBadRequest, "invalid_request", convErr.Error())
 		return
 	}
-	// Reasoning default mirrors chat: family auto-max (xhigh for
-	// muse-spark/mimo with 32768 budget) when the client set nothing.
-	// The chat body already carries reasoning when the client sent it —
-	// ensureReasoningMax passthroughs explicit params untouched.
-	chatBody = ensureReasoningMax(chatBody)
+	// Reasoning policy mirrors /v1/chat/completions: the operator's
+	// model_reasoning REPLACES any client reasoning.effort already converted
+	// into the chat body; without an override the client's explicit value wins
+	// over the family auto-max.
+	chatBody = s.applyReasoningPolicy(chatBody, in.Model)
 
 	var hint struct {
 		Model string `json:"model"`

@@ -45,7 +45,9 @@ var W01 = (function () {
   /* Шаг сетки под 4 линии: округлённая четверть верхней границы оси. */
   function gridStep(mx) { return niceMax(+mx || 1) / 4; }
 
-  function ms(v) { v = +v || 0; return v >= 1000 ? (v / 1000).toFixed(2).replace(".", ",") + " с" : Math.round(v) + " мс"; }
+  /* Единый формат длительности: до секунды — целые «850 мс», от секунды —
+     «3,4 с» (одна десятая, запятая). Так читается и глазом, и в колонке. */
+  function ms(v) { v = +v || 0; return v >= 1000 ? (v / 1000).toFixed(1).replace(".", ",") + " с" : Math.round(v) + " мс"; }
   function toks(v) { return compact(Math.round(+v || 0)); }
   function money(c) { return moneyC(c); }
   function pctStr(p) { return (p == null || !isFinite(p) || p < 0) ? "∞" : Math.round(p * 100) + "%"; }

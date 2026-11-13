@@ -60,6 +60,10 @@ type recItem struct {
 	path string
 }
 
+// effortOverrideLogged suppresses the "operator setting beats client param"
+// WARN to once per (model, client effort) per process.
+var effortOverrideLogged sync.Map
+
 // enqueueRecord hands a request event to the background recorder. When the
 // queue is full the event is dropped — accounting is best-effort, responses
 // are not.
@@ -415,25 +419,15 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	reqStart := time.Now()
 	defer finishRequest(r, body, dw, reqStart)
 
-	// Reasoning priority: client-explicit > GUI per-model override >
-	// family auto-max. The GUI override (ProviderEffort) is injected here,
-	// BEFORE ensureReasoningMax, so the auto-max never buries it; both
-	// injectors passthrough when the client set any reasoning param.
-	// The body forwarded to the router has to be the one actually sent,
-	// so idemHash and logs are consistent.
+	// Reasoning: operator per-model override (POLICY) > client param > family
+	// auto-max; shared with /v1/responses so both paths obey one rule. The body
+	// forwarded to the router has to be the one actually sent, so idemHash and
+	// logs are consistent.
 	var hintModel struct {
 		Model string `json:"model"`
 	}
 	_ = json.Unmarshal(body, &hintModel)
-	if s.router != nil {
-		if eff := s.router.ProviderEffort(hintModel.Model); eff != "" && eff != "auto" {
-			body = route.WithReasoning(body, eff)
-		} else {
-			body = ensureReasoningMax(body)
-		}
-	} else {
-		body = ensureReasoningMax(body)
-	}
+	body = s.applyReasoningPolicy(body, hintModel.Model)
 	var req struct {
 		Model  string `json:"model"`
 		Stream bool   `json:"stream"`
@@ -502,6 +496,31 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 		res, err = s.router.Call(callCtx, req.Model, forceLowReasoning(forcedAnswerBody(body)), req.Stream)
 	}
+	// A text-only engine instance refused the images even after the router's
+	// strip-retry. A 400 is terminal for the client (OMP retries 5xx/429 only),
+	// while a retry on another egress may reach a multimodal instance: shape it
+	// as a bare 503 instead of the fatal 400. No Retry-After on purpose — OMP
+	// retries 5xx on its own, and an outward RA is the lever that escalates a
+	// provider into a long block.
+	if err == nil && res != nil && res.Status == http.StatusBadRequest {
+		raw, rerr := io.ReadAll(io.LimitReader(res.Resp.Body, 64<<10))
+		_ = res.Resp.Body.Close()
+		if rerr == nil && route.IsImageUnavailableBody(raw) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write(raw)
+			ev := s.requestEvent(req.Model, nil, nil, k, http.StatusServiceUnavailable, start, r)
+			ev.Error = "image input refused by a text-only engine instance; retry may reach a multimodal one"
+			s.enqueueRecord(ev, "/v1/chat/completions")
+			if s.ring != nil {
+				s.ring.Add("warn", "image input refused by a text-only engine, 503 for a retry")
+			}
+			return
+		}
+		if rerr == nil {
+			res.Resp.Body = io.NopCloser(bytes.NewReader(raw))
+		}
+	}
 	if err != nil {
 		// Отмена клиента: соединение уже мёртво — не пишем 503 в сокет и в лог.
 		if r.Context().Err() != nil || errors.Is(err, context.Canceled) {
@@ -511,8 +530,14 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		ev := s.requestEvent(req.Model, nil, nil, k, status, start, r)
 		ev.Error = crypto.SafeError(err.Error())
 		var use *route.UpstreamStatusError
-		if errors.As(err, &use) && use.RetryAfter != "" {
-			ev.Error += " retry_after=" + use.RetryAfter
+		if errors.As(err, &use) {
+			// A failed request still spent real provider calls: the hop's retry
+			// telemetry rides on the terminal error now. Without this the journal
+			// recorded attempts=0 for 503s that burned up to six egresses.
+			ev.Attempts, ev.RetryMS = use.Attempts, use.RetryMS
+			if use.RetryAfter != "" {
+				ev.Error += " retry_after=" + use.RetryAfter
+			}
 		}
 		s.enqueueRecord(ev, "/v1/chat/completions")
 		slog.Default().Info("resp", "status", status, "model", req.Model, "error", crypto.SanitizeForLog(err.Error()), "dur_ms", time.Since(start).Milliseconds(), "prompt_tok", len(body))
@@ -562,6 +587,10 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 					"err", crypto.SanitizeForLog(err.Error()), "dur_ms", time.Since(start).Milliseconds())
 				ev := s.requestEvent(req.Model, nil, nil, k, http.StatusServiceUnavailable, start, r)
 				ev.Error = crypto.SafeError(err.Error())
+				var use2 *route.UpstreamStatusError
+				if errors.As(err, &use2) {
+					ev.Attempts, ev.RetryMS = use2.Attempts, use2.RetryMS
+				}
 				s.enqueueRecord(ev, "/v1/chat/completions")
 				if s.ring != nil {
 					s.ring.Add("warn", "think-only retry failed: "+crypto.SanitizeForLog(err.Error()))
@@ -680,6 +709,33 @@ func forceLowReasoning(body []byte) []byte {
 	return out
 }
 
+// applyReasoningPolicy applies the operator's per-model reasoning effort
+// (provider model_reasoning) as POLICY across BOTH gateway paths: it REPLACES
+// whatever reasoning param the client sent, so a stale client level (OMP
+// --thinking xhigh, or a Responses reasoning.effort) cannot cap the level set
+// in the panel/config. Without an override the client's explicit value still
+// wins over the family auto-max.
+func (s *Server) applyReasoningPolicy(body []byte, model string) []byte {
+	if s == nil || s.router == nil {
+		return ensureReasoningMax(body)
+	}
+	eff := s.router.ProviderEffort(model)
+	if eff == "" || eff == "auto" {
+		return ensureReasoningMax(body)
+	}
+	out, clientEff, sentEff := route.WithReasoning(body, eff)
+	if clientEff != "" && sentEff != "" && !strings.EqualFold(clientEff, sentEff) {
+		// Once per (model, client value): a noisy per-request WARN would bury
+		// real warnings, but the fact must be visible somewhere.
+		key := model + "|" + strings.ToLower(clientEff)
+		if _, seen := effortOverrideLogged.LoadOrStore(key, struct{}{}); !seen {
+			slog.Default().Warn("reasoning override: operator setting beats client param",
+				"model", model, "client", clientEff, "sent", sentEff)
+		}
+	}
+	return out
+}
+
 // ensureReasoningMax injects the model family's MAXIMUM reasoning level when
 // the caller sent no explicit reasoning params. Families differ in the top
 // effort label: muse/mimo accept "xhigh", while x-preview validates strictly
@@ -741,6 +797,9 @@ func (s *Server) requestEvent(model string, res *route.Result, usage *stream.Usa
 		ev.ComboName = res.ComboName
 		ev.ComboStepID = res.ComboStepID
 		ev.ComboPath = res.ComboPath
+		// Retry telemetry belongs to the hop's answer, not to provider config.
+		ev.Attempts = res.Attempts
+		ev.RetryMS = res.RetryMS
 		if p := s.router.Provider(res.Provider); p != nil {
 			// Pool lease channel id wins; fall back to static provider egress.
 			ev.Proxy = res.Proxy
@@ -946,6 +1005,13 @@ func (s *Server) writeRouteError(w http.ResponseWriter, err error) int {
 		return http.StatusTooManyRequests
 	case errors.As(err, &upstream):
 		st := upstream.Status
+		// A text-only engine refused the images after the router's strip-retry:
+		// a 400 is terminal for the client (OMP retries 429/5xx only), while a
+		// retry on another egress may reach a multimodal instance.
+		if st == http.StatusBadRequest && route.IsImageUnavailableBody([]byte(msg)) {
+			writeErr(w, http.StatusServiceUnavailable, "upstream_error", "server_error", msg)
+			return http.StatusServiceUnavailable
+		}
 		if upstream.RetryAfter != "" {
 			w.Header().Set("Retry-After", upstream.RetryAfter)
 		}

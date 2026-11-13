@@ -35,6 +35,11 @@ type RequestLogView struct {
 	// the exact number is what tells a wait apart from a slow upstream: the
 	// pool held the request instead of answering 503 in two milliseconds.
 	WaitedMS int64 `json:"waited_ms"`
+	// Attempts/RetryMS: the request ate provider errors and was retried on
+	// another egress (0 = first try). Journal category "retried"; RetryMS is
+	// the time those retries cost, shown next to the total duration.
+	Attempts int64 `json:"attempts"`
+	RetryMS  int64 `json:"retry_ms"`
 }
 
 func logView(r store.RequestLogRow) RequestLogView {
@@ -48,6 +53,8 @@ func logView(r store.RequestLogRow) RequestLogView {
 		ComboName: r.ComboName, ComboStepID: r.ComboStepID,
 		ComboPath: store.ParseComboPath(r.ComboPath),
 		WaitedMS:  r.WaitedMS,
+		Attempts:  r.Attempts,
+		RetryMS:   r.RetryMS,
 	}
 }
 

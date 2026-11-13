@@ -254,17 +254,21 @@ func TestDeterministicProviderOrder(t *testing.T) {
 }
 
 // TestWithReasoningMaxAlias: GUI "max" maps to the family's real top level —
-// muse-spark/mimo accept xhigh, "max" earns a live 400 (2026-09-10).
+// muse-spark/mimo accept xhigh, "max" earns a live 400 (2026-09-10) — and the
+// operator setting REPLACES a client reasoning param (policy, not default).
 func TestWithReasoningMaxAlias(t *testing.T) {
-	out := WithReasoning([]byte(`{"model":"muse-spark-1.3-contributor-free","messages":[]}`), "max")
+	out, client, sent := WithReasoning([]byte(`{"model":"muse-spark-1.3-contributor-free","messages":[]}`), "max")
 	var m map[string]any
 	if err := json.Unmarshal(out, &m); err != nil {
 		t.Fatal(err)
 	}
-	if m["reasoning_effort"] != "xhigh" {
-		t.Fatalf("muse max -> %v, want xhigh", m["reasoning_effort"])
+	if m["reasoning_effort"] != "xhigh" || sent != "xhigh" || client != "" {
+		t.Fatalf("muse max -> %v (sent %q, client %q), want xhigh", m["reasoning_effort"], sent, client)
 	}
-	out2 := WithReasoning([]byte(`{"model":"x-preview-f-free","messages":[]}`), "max")
+	out2, _, sent2 := WithReasoning([]byte(`{"model":"x-preview-f-free","messages":[]}`), "max")
+	if sent2 != "max" {
+		t.Fatalf("x-preview max -> %q, want max", sent2)
+	}
 	var m2 map[string]any
 	if err := json.Unmarshal(out2, &m2); err != nil {
 		t.Fatal(err)
@@ -272,14 +276,28 @@ func TestWithReasoningMaxAlias(t *testing.T) {
 	if m2["reasoning_effort"] != "max" {
 		t.Fatalf("x-preview max -> %v, want max", m2["reasoning_effort"])
 	}
-	// Client-explicit wins: never override.
-	out3 := WithReasoning([]byte(`{"model":"muse-spark-1.3-contributor-free","reasoning_effort":"low"}`), "max")
+
+	// Operator override wins over a client param (OMP --thinking xhigh against
+	// deepseek=max in model_reasoning): the sent effort is max, not xhigh.
+	out3, client3, sent3 := WithReasoning([]byte(`{"model":"deepseek-v4.1-flash-free","reasoning_effort":"xhigh"}`), "max")
+	if sent3 != "max" || client3 != "xhigh" {
+		t.Fatalf("deepseek: sent %q client %q, want sent max / client xhigh", sent3, client3)
+	}
 	var m3 map[string]any
 	if err := json.Unmarshal(out3, &m3); err != nil {
 		t.Fatal(err)
 	}
-	if m3["reasoning_effort"] != "low" {
-		t.Fatalf("explicit low -> %v, want low", m3["reasoning_effort"])
+	if m3["reasoning_effort"] != "max" {
+		t.Fatalf("replaced body keeps %v, want max", m3["reasoning_effort"])
+	}
+	if r, ok := m3["reasoning"].(map[string]any); !ok || r["effort"] != "max" {
+		t.Fatalf("reasoning object not rewritten: %v", m3["reasoning"])
+	}
+
+	// The family alias still applies when replacing a client value.
+	_, client4, sent4 := WithReasoning([]byte(`{"model":"muse-spark-1.3-contributor-free","reasoning_effort":"low"}`), "max")
+	if sent4 != "xhigh" || client4 != "low" {
+		t.Fatalf("muse low->max: sent %q client %q, want xhigh/low", sent4, client4)
 	}
 }
 

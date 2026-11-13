@@ -171,20 +171,28 @@ type sessionEntry struct {
 	updated int64
 }
 
-func opencodeDBPath() string {
-	// AI_ROUTER_SESSION_DB overrides the harvest source ("off" disables
-	// the pool entirely — used by tests for deterministic fallback).
-	if v := os.Getenv("AI_ROUTER_SESSION_DB"); v != "" {
-		if v == "off" {
-			return ""
-		}
-		return v
-	}
+// defaultOpencodeDB is where the TUI keeps its sqlite store.
+func defaultOpencodeDB() string {
 	h, err := os.UserHomeDir()
 	if err != nil || h == "" {
 		h = os.Getenv("USERPROFILE")
 	}
 	return filepath.Join(h, ".local", "share", "opencode", "opencode.db")
+}
+
+// opencodeDBPath is the HARVEST source. Generation is the default (2026-11-07):
+// the free gate validates the 30-char ses_* FORMAT, and fallbackSessionFor
+// already keeps one generated id per egress — measured 6/6 200 on
+// opencode/deepseek-v4.1-flash-free with the pool empty, while the same model
+// failed whenever the harvest handed out an unregistered id (1733 dead rows in
+// opencode.db, 2026-11-07). Harvest only when a path is named explicitly;
+// "off" is kept as the old spelling of the same default.
+func opencodeDBPath() string {
+	v := os.Getenv("AI_ROUTER_SESSION_DB")
+	if v == "" || v == "off" {
+		return ""
+	}
+	return v
 }
 
 func (s *SessionPool) now() time.Time {

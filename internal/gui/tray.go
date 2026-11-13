@@ -15,6 +15,38 @@ import (
 // «Открыть/Тест/Выйти». Tooltip = «ai-router — панель ядра» (SetTitle на
 // Windows — no-op, статус не пишем в заголовок). Тест из трея — живой
 // chat.complete на первой доступной модели, результат в лог.
+// trayMenu — пункты трея, которым SetUILanguage обновляет подписи.
+// Подписи парные (ru, en): relabelTray берёт нужную по текущему uiLang.
+var (
+	trayMu   sync.Mutex
+	trayMenu []*systray.MenuItem
+)
+
+var trayLabels = [][2]string{
+	{"Открыть", "Open"},
+	{"Тест", "Test"},
+	{"Выйти", "Quit"},
+}
+
+// relabelTray переписывает подписи пунктов меню под текущий язык панели.
+// Вызывается из биндинга SetUILanguage после старта трея.
+func relabelTray() {
+	trayMu.Lock()
+	items := append([]*systray.MenuItem(nil), trayMenu...)
+	trayMu.Unlock()
+	for i := 0; i < len(items) && i < len(trayLabels); i++ {
+		if items[i] != nil {
+			items[i].SetTitle(uiTr(trayLabels[i][0], trayLabels[i][1]))
+		}
+	}
+	// Подсказка иконки ставится один раз в startTray, когда язык панели ещё
+	// не пришёл (RU по умолчанию): без этой строки EN-пользователь видит
+	// русский тултип до перезапуска. Пустой trayMenu = трей не запущен.
+	if len(items) > 0 {
+		systray.SetTooltip(uiTitle())
+	}
+}
+
 func startTray(app *App) chan struct{} {
 	done := make(chan struct{})
 	var once sync.Once
@@ -34,7 +66,7 @@ func startTray(app *App) chan struct{} {
 				break
 			}
 			systray.SetTitle("ai-router")
-			systray.SetTooltip("ai-router — панель ядра")
+			systray.SetTooltip(uiTitle())
 			systray.SetOnClick(func(systray.IMenu) { app.showWindow() })
 
 			// wmTaskbarCreated re-add + modify + 300ms re-SetIcon — explorer restart восстанавливает
@@ -45,10 +77,13 @@ func startTray(app *App) chan struct{} {
 				systray.SetIcon(iconBytes())
 			}()
 
-			mOpen := systray.AddMenuItem("Открыть", "Показать окно")
-			mTest := systray.AddMenuItem("Тест", "Живой chat.complete (первая модель)")
+			mOpen := systray.AddMenuItem(uiTr("Открыть", "Open"), uiTr("Показать окно", "Show window"))
+			mTest := systray.AddMenuItem(uiTr("Тест", "Test"), uiTr("Живой chat.complete (первая модель)", "Live chat.complete (first model)"))
 			systray.AddSeparator()
-			mQuit := systray.AddMenuItem("Выйти", "Завершить omnigate-gui")
+			mQuit := systray.AddMenuItem(uiTr("Выйти", "Quit"), uiTr("Завершить omnigate-gui", "Exit omnigate-gui"))
+			trayMu.Lock()
+			trayMenu = []*systray.MenuItem{mOpen, mTest, mQuit}
+			trayMu.Unlock()
 			mOpen.Click(func() { app.showWindow() })
 			mTest.Click(func() {
 				tr, err := app.Test("")

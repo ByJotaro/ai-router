@@ -86,6 +86,9 @@ func (s *Store) Migrate() error {
 	if err := s.migrateRequestLogComboPath(); err != nil {
 		return err
 	}
+	if err := s.migrateRequestLogRetry(); err != nil {
+		return err
+	}
 	return s.migrateModelsCatalogCents()
 }
 
@@ -131,6 +134,27 @@ func (s *Store) migrateRequestLogWaitedMS() error {
 	}
 	_, err := s.db.Exec(`ALTER TABLE request_log ADD COLUMN waited_ms INTEGER NOT NULL DEFAULT 0`)
 	return err
+}
+
+// migrateRequestLogRetry adds the attempts/retry_ms columns to pre-existing
+// request_log tables: the hop that retried (opencode sidecar) reports how many
+// provider-error answers a request ate and the wall time they cost, so the
+// journal can show "retried" as its own category instead of hiding it in
+// latency. Idempotent.
+func (s *Store) migrateRequestLogRetry() error {
+	for _, col := range []string{"attempts", "retry_ms"} {
+		var n int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('request_log') WHERE name=?`, col).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			continue
+		}
+		if _, err := s.db.Exec(`ALTER TABLE request_log ADD COLUMN ` + col + ` INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // comboPathJSON сериализует трек обхода графа в JSON-массив для колонки
@@ -279,12 +303,12 @@ func (s *Store) InsertRequestLog(e events.RequestEvent, method, path string) err
 	_, err := s.db.Exec(
 		`INSERT INTO request_log(ts, rid, model, requested_model, provider, account, connection_id,
 		   duration_ms, prompt_tokens, completion_tokens, cache_read, cache_write, reasoning, compressed,
-		   combo_name, combo_step_id, combo_path, status, http_status, error, proxy, waited_ms, method, path, cost_usd)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		   combo_name, combo_step_id, combo_path, status, http_status, error, proxy, waited_ms, attempts, retry_ms, method, path, cost_usd)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		time.Now().UTC().Format(time.RFC3339), e.RID, e.Model, e.RequestedModel, e.Provider, e.Account, e.ConnectionID,
 		e.DurationMS, e.Tokens.Prompt, e.Tokens.Completion, e.Tokens.CacheRead, e.Tokens.CacheWrite,
 		e.Tokens.Reasoning, e.Tokens.Compressed, e.ComboName, e.ComboStepID, comboPathJSON(e.ComboPath), e.Status, e.HTTPStatus,
-		e.Error, e.Proxy, e.WaitedMS, method, path, e.CostCents)
+		e.Error, e.Proxy, e.WaitedMS, e.Attempts, e.RetryMS, method, path, e.CostCents)
 	return err
 }
 
@@ -372,18 +396,24 @@ type RequestLogRow struct {
 	// WaitedMS is the pool wait-for-egress time for this request (0 when it
 	// was served immediately). Journal category "served after wait".
 	WaitedMS int64
+	// Attempts/RetryMS: the hop retried after a provider error; Attempts is
+	// how many error answers preceded the served one, RetryMS the wall time
+	// they + the egress switch cost. Journal category "retried".
+	Attempts int64
+	RetryMS  int64
 }
 
 const requestLogSelect = `SELECT id, ts, rid, model, requested_model, provider, account, connection_id,
 	duration_ms, prompt_tokens, completion_tokens, cache_read, cache_write, reasoning, compressed,
-	combo_name, combo_step_id, combo_path, status, http_status, error, proxy, waited_ms, method, path
+	combo_name, combo_step_id, combo_path, status, http_status, error, proxy, waited_ms, attempts, retry_ms, method, path
 	FROM request_log`
 
 func scanRequestLog(row interface{ Scan(...any) error }) (RequestLogRow, error) {
 	var r RequestLogRow
 	err := row.Scan(&r.ID, &r.Ts, &r.RID, &r.Model, &r.RequestedModel, &r.Provider, &r.Account, &r.ConnectionID,
 		&r.DurationMS, &r.PromptTokens, &r.CompletionTokens, &r.CacheRead, &r.CacheWrite, &r.Reasoning, &r.Compressed,
-		&r.ComboName, &r.ComboStepID, &r.ComboPath, &r.Status, &r.HTTPStatus, &r.Error, &r.Proxy, &r.WaitedMS, &r.Method, &r.Path)
+		&r.ComboName, &r.ComboStepID, &r.ComboPath, &r.Status, &r.HTTPStatus, &r.Error, &r.Proxy, &r.WaitedMS,
+		&r.Attempts, &r.RetryMS, &r.Method, &r.Path)
 	return r, err
 }
 
@@ -408,14 +438,15 @@ func (s *Store) queryRequestLogs(q string, args ...any) ([]RequestLogRow, error)
 // авторефреш гоняет 500 строк каждые 25с, полные тексты нужны только инспектору.
 const requestLogListSelect = `SELECT id, ts, rid, model, requested_model, provider, account, connection_id,
 	duration_ms, prompt_tokens, completion_tokens, cache_read, cache_write, reasoning, compressed,
-	combo_name, combo_step_id, combo_path, status, http_status, waited_ms, method, path
+	combo_name, combo_step_id, combo_path, status, http_status, waited_ms, attempts, retry_ms, method, path
 	FROM request_log`
 
 func scanRequestLogList(row interface{ Scan(...any) error }) (RequestLogRow, error) {
 	var r RequestLogRow
 	err := row.Scan(&r.ID, &r.Ts, &r.RID, &r.Model, &r.RequestedModel, &r.Provider, &r.Account, &r.ConnectionID,
 		&r.DurationMS, &r.PromptTokens, &r.CompletionTokens, &r.CacheRead, &r.CacheWrite, &r.Reasoning, &r.Compressed,
-		&r.ComboName, &r.ComboStepID, &r.ComboPath, &r.Status, &r.HTTPStatus, &r.WaitedMS, &r.Method, &r.Path)
+		&r.ComboName, &r.ComboStepID, &r.ComboPath, &r.Status, &r.HTTPStatus, &r.WaitedMS,
+		&r.Attempts, &r.RetryMS, &r.Method, &r.Path)
 	return r, err
 }
 

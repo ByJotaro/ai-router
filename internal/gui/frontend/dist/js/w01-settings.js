@@ -232,6 +232,19 @@ function mixCard(title, hint, inner) {
     '<div class="card-head"><h3>' + esc(title) + '</h3><span class="hint">' + esc(hint) + '</span><span class="spacer"></span></div>' +
     inner + "</div>";
 }
+/* Язык интерфейса: system (язык ОС) / ru / en. Смена перезагружает панель. */
+function w01LangCard() {
+  var cur = (typeof I18N !== "undefined" && I18N.mode) || "system";
+  var opt = function (v, label, keep) {
+    return '<option value="' + v + '"' + (cur === v ? " selected" : "") + (keep ? " data-no-i18n" : "") + ">" + esc(label) + "</option>";
+  };
+  var sel = '<select class="w01-inp w01-sel" id="w01-lang" aria-label="Язык интерфейса">' +
+    opt("system", "Система") + opt("ru", "Русский", 1) + opt("en", "English", 1) + "</select>";
+  var body = '<div class="w01-nrow" data-k="ui.language">' +
+    '<span class="w01-nrow-l">Язык интерфейса</span>' +
+    '<span class="w01-nrow-p">ui.language</span>' + sel + "</div>";
+  return mixCard("Язык интерфейса", "смена перезагружает панель", body);
+}
 function mixRowsHTML() {
   var h = "", i, defs;
   var pick = function (arr, keys) {
@@ -394,6 +407,7 @@ function w01SettingsDraw() {
     return;
   }
   ed.innerHTML =
+    '<div class="mix-cards">' + w01LangCard() + "</div>" +
     '<div class="w01-nums" id="w01-cf-nums">' + w01SNums() + "</div>" +
     '<div class="w01-note" id="w01-cf-note">' + esc(w01SNote()) + "</div>" +
     '<div class="mix-cards">' + mixRowsHTML() + "</div>" +
@@ -454,6 +468,17 @@ function w01SettingsWire() {
 
   ed.addEventListener("change", function (e) {
     var el = e.target;
+    if (el && el.id === "w01-lang" && typeof I18N !== "undefined") {
+      /* Смена языка перезагружает панель, а reload молча выбросил бы
+         несохранённые правки слайдеров (уход с вкладки их сохраняет).
+         Дожидаемся записи в ядро и только потом переключаемся. */
+      var go = function () { I18N.setMode(el.value); };
+      try {
+        if (!DEMO && Go() && cfgDirty) { Promise.resolve(saveCfg({ auto: true })).then(go, go); return; }
+      } catch (eLang) {}
+      go();
+      return;
+    }
     if (!el || !el.getAttribute) return;
     var row = el.closest ? el.closest(".w01-nrow") : null;
     if (!row || !el.hasAttribute("data-in")) return;
@@ -558,23 +583,12 @@ async function loadSettings() {
 }
 
 function renderSettings(host) {
+  /* Вкладка целиком живёт в js/scard.js: реестр параметров ядра.
+     Старая разметка (w01-*) и её отрисовка не используются. */
+  if (typeof N09 !== "undefined" && N09 && N09.mount) { N09.mount(host); return; }
+  if (typeof SCard !== "undefined" && SCard && SCard.mount) { SCard.mount(host); return; }
   var ed = host || document.getElementById("settings-editor");
-  if (!ed) return;
-  w01SettingsWire();
-  w01SettingsDraw();
-  var badge = document.getElementById("w01-cf-dirty");
-  if (badge) {
-    badge.textContent = cfgDirty ? "не сохранено" : "синхронно";
-    if (badge.classList) badge.classList.toggle("w01-warnc", cfgDirty);
-  }
-  var live = document.getElementById("settings-live-txt");
-  if (live) live.textContent = DEMO ? "● DEMO — правки в S.cfg" : "● LIVE";
-  var meta = document.getElementById("settings-meta");
-  if (meta && S.cfg) {
-    var s = S.cfg.server || {};
-    meta.textContent = "конфиг ядра · " + String(s.host || "—") + ":" + String(s.port == null ? "—" : s.port) +
-      " · путь правок: S.cfg → SaveConfig";
-  }
+  if (ed) ed.innerHTML = '<div class="sc-empty">модуль панели не загружен: js/r06-settings.js</div>';
 }
 
 function saveCfg(opts) {

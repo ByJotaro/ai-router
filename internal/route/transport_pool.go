@@ -1107,15 +1107,17 @@ func (p *PoolTransport) rotateKeyFor(prov string) {
 // always looks like a fresh TUI. Rule: uniform UA per pool, never per-IP
 // (varying patch per egress risks a throttled UA class). Stale minors
 // throttle ~5/IP (user 2026-09-06).
-const defaultPinnedUAVersion = "1.19.4"
+//
+// 2026-11-11: the captured 1.19.4/bun1.4.4 tuple became throttled by upstream
+// (429 FreeUsageLimitError on a clean IP while 1.19.5/bun1.4.0 and 1.19.4/bun1.4.0
+// returned 200). Pin to a known-good tuple and let provider.user_agent override.
+const defaultPinnedUAVersion = "1.19.5"
 
-// The triple must be ONE shipped CLI build: the previous pair (provider-utils
-// 4.0.40 + bun 1.3.14) never shipped together with any opencode release and is
-// a stable non-client fingerprint. Values below come from the MITM capture of
-// the real CLI 1.19.4 (captured request log of the CLI).
-const capturedUABuild = "1.19.4"
+// The triple must be a tuple upstream accepts. 1.19.4+4.0.23+1.4.4 was a real
+// capture but is now rejected; 1.19.5+4.0.23+1.4.0 is accepted on clean IPs.
+const capturedUABuild = "1.19.5"
 const pinnedProviderUtils = "4.0.23"
-const pinnedBunRuntime = "1.4.4"
+const pinnedBunRuntime = "1.4.0"
 
 var pinnedUAVer atomic.Value // string
 var uaDriftWarned sync.Map   // version -> warned
@@ -1246,13 +1248,14 @@ func startUARefresh() {
 	}()
 }
 
-// leaseUA pins the opencode UA to pinnedUA: the free-tier window binds
-// (IP, full-UA); stale versions throttle ~5 req/IP before 429.
+// leaseUA pins the opencode UA to a known-good CLI tuple: the free-tier window
+// binds (IP, full-UA). A passthrough client string (OMP's ai-sdk/Bun UA) is not
+// a CLI fingerprint; the default pinned tuple is used unless explicitly overridden.
 func leaseUA(provProvider *provider.Provider, proxy, base string) string {
-	// opencode free lane: ALWAYS the pinned CLI UA. The window binds (IP, full
-	// UA), and a passthrough client string (OMP's ai-sdk/Bun UA) is a
-	// fingerprint the real CLI never sends — one uniform value per pool.
 	if provProvider != nil && isOpencodeUpstream(provProvider) {
+		if ua := strings.TrimSpace(provProvider.UserAgent); ua != "" {
+			return ua
+		}
 		return pinnedUA()
 	}
 	if !strings.HasPrefix(base, "opencode/") {
@@ -4767,11 +4770,22 @@ func (p *PoolTransport) acquireLeaseInner(ctx context.Context, reqID uint64, mod
 			l.ua = pinnedUA()
 		}
 		if stamp.sessOK {
-			// Pool lane: ONLY a genuine harvested id. When the harvest is
-			// exhausted the egress has no identity — refuse it rather than
-			// share one across IPs or ship a fabricated ses_* (the gate
-			// rejects generated ids on every egress).
+			// Pool lane identity: a harvested id when the pool has one, else the
+			// per-egress generated id the direct lane already ships. The harvest
+			// is OFF by default since 2026-11-07 (opencodeDBPath returns "" unless
+			// AI_ROUTER_SESSION_DB names a source), so refusing identity-less
+			// egresses left the pool lane with no supply at all — opencode-zen /
+			// opencode-temp answered 503 "session supply exhausted" (measured
+			// 2026-11-11 17:33: 8 egresses without identity) while the same
+			// generator served 200s on the direct lane. The gate validates the
+			// ses_* FORMAT, and fallbackSessionFor is keyed per egress, so ids are
+			// never shared across IPs. The refusal below is defensive only: it
+			// fires for an egress with an empty key, where no per-egress id can be
+			// scoped (fallbackSessionFor("") returns "" by design).
 			l.session = getSessionPool().NextFor(ekey0)
+			if l.session == "" {
+				l.session = fallbackSessionFor(ekey0)
+			}
 			if l.session == "" {
 				_ = p.release(context.Background(), out.LeaseID)
 				noID[ekey0] = true
@@ -5530,10 +5544,9 @@ func (rt *poolRetryRT) RoundTrip(req *http.Request) (*http.Response, error) {
 	// upstream UA на свежем stable (npm -> GitHub, 6h). startStandbyVerify —
 	// +1 поток: очередь 429-битых IP, проверка мимо горячего пути.
 	rt.t.rememberModel(rt.model)
-	// UA tuple is PINNED to the captured build (1.19.4 / provider-utils 4.0.23 /
-	// bun 1.4.4). Auto-refreshing only the version from npm/github produced a
-	// tuple that never shipped upstream and caused 429s on every egress.
-	// startUARefresh()  // disabled: pin provider UA tuple
+	// Keep the upstream-facing opencode version fresh; the provider-utils/bun
+	// parts stay pinned to a tuple that is accepted by the free lane.
+	startUARefresh()
 	if rt.provProvider != nil {
 		rt.t.startPrewarm(rt.prov, rt.provProvider.BaseURL, rt.provProvider)
 		rt.t.startStandbyVerify(rt.prov, rt.provProvider.BaseURL, rt.provProvider)

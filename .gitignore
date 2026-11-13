@@ -41,3 +41,7 @@ Thumbs.db
 # Wails/GUI build artifacts (generated)
 cmd/ai-router/frontend/wailsjs/
 internal/gui/frontend/wailsjs/
+
+# sidecar: the vendored transport ships with its own dist/ (upstream layout)
+!sidecar/vendor/wreq-js/dist/
+!sidecar/vendor/wreq-js/dist/**

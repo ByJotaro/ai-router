@@ -11,6 +11,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="./css/tokens.css">
 <link rel="stylesheet" href="./css/shell.css">
+<link rel="stylesheet" href="./css/pcard.css">
+<link rel="stylesheet" href="./css/c08-card.css">
+<link rel="stylesheet" href="./css/scard.css">
 <link rel="stylesheet" href="./css/home.css">
 <link rel="stylesheet" href="./css/tabtheme.css">
 <link rel="stylesheet" href="./css/top08.css">
@@ -24,6 +27,8 @@
 <link rel="stylesheet" href="./css/w01-proxies.css">
 <link rel="stylesheet" href="./css/w01-settings.css">
 <link rel="stylesheet" href="./css/mix-settings.css">
+<link rel="stylesheet" href="./css/r06-settings.css">
+<link rel="stylesheet" href="./css/r06-dd.css">
 
 </head>
 <body data-top="8">
@@ -224,6 +229,7 @@
           </div>
           <div class="lg-lv" id="log-lvchips" role="group" aria-label="Уровни записей">
             <button type="button" class="chip w01-lvl-info on" data-lv="info" aria-pressed="true" title="обычные записи"><i class="lg-dot i"></i>ok<b data-lvc="info">0</b></button>
+            <button type="button" class="chip w01-lvl-retry on" data-lv="retry" aria-pressed="true" title="ответ пришёл после ошибки провайдера и ретрая на другой egress"><i class="lg-dot r"></i>ретрай<b data-lvc="retry">0</b></button>
             <button type="button" class="chip w01-lvl-warn on" data-lv="warn" aria-pressed="true" title="медленные записи"><i class="lg-dot w"></i>медл<b data-lvc="warn">0</b></button>
             <button type="button" class="chip w01-lvl-error on" data-lv="error" aria-pressed="true" title="ошибки"><i class="lg-dot e"></i>err<b data-lvc="error">0</b></button>
           </div>
@@ -287,15 +293,7 @@
         <div class="meta" id="settings-meta" title="источник: S.cfg (GetConfig) · запись: SaveConfig">полотно шкал конфига</div>
         <div class="live" id="settings-live"><i></i><span id="settings-live-txt">● LIVE</span></div>
       </div>
-      <div class="w01-wrap">
-        <div class="w01-cfbar">
-          <span class="w01-chip" id="w01-cf-dirty" role="status">синхронно</span>
-          <span class="spacer"></span>
-          <button class="w01-btn" type="button" id="w01-cf-revert" title="Вернуть значения, загруженные из ядра">откатить правки</button>
-          <button class="btn primary sm" type="button" id="w01-cf-save" title="Записать S.cfg в ядро (SaveConfig)">сохранить в ядро</button>
-        </div>
-        <div class="w01-block" id="settings-editor"></div>
-      </div>
+      <div class="r06" id="settings-editor" data-r06 data-no-i18n></div>
     </section>
 
   </div>
@@ -304,6 +302,7 @@
 <div id="toast-wrap" role="status" aria-live="polite"></div>
 
 <!-- ================= APP STATE / MACRO-BUS ================= -->
+<script src="./js/i18n.js"></script>
 <script src="./js/core.js"></script>
 <script src="./js/shared.js"></script>
 <script src="./js/home.js"></script>
@@ -321,6 +320,10 @@
 <script src="./js/w01-logs.js"></script>
 <script src="./js/w01-proxies.js"></script>
 <script src="./js/w01-settings.js"></script>
+<script src="./js/pcard.js"></script>
+<script src="./js/c08-card.js"></script>
+<script src="./js/scard.js"></script>
+<script src="./js/r06-settings.js"></script>
 <script src="./js/shell.js"></script>
 <script src="./js/combo.js"></script>
 <script src="./js/prov-cards.js"></script>

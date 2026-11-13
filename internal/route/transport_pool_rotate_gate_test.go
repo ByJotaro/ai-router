@@ -1,15 +1,9 @@
 package route
 
 import (
-	"context"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
-
-	"github.com/ByJotaro/ai-router/internal/provider"
 )
 
 // TestRotateWantedRequiresSilence is the guard the live log asked for: the
@@ -48,40 +42,6 @@ func TestRotateWantedRequiresSilence(t *testing.T) {
 	banned.markBad429("e:x", time.Hour, now)
 	if !banned.rotateWanted(now) {
 		t.Fatal("majority-banned pool must rotate even without the latch")
-	}
-}
-
-// TestRefusedLeaseDoesNotRotate: a lease refused for lack of genuine session
-// ids is a SUPPLY problem. Rotating re-registers WARP and mints new egresses
-// that need ids nobody has — the shortage gets worse, and the pool churns
-// identities for nothing.
-func TestRefusedLeaseDoesNotRotate(t *testing.T) {
-	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer up.Close()
-	api := &fakePoolAPI{leases: []string{up.URL}}
-	pa := httptest.NewServer(http.HandlerFunc(api.handler))
-	defer pa.Close()
-
-	resetSessionPool()
-	t.Cleanup(resetSessionPool)
-	getSessionPool().Fetch = func(string, time.Duration, time.Time) []sessionEntry { return nil }
-
-	pt := &PoolTransport{APIURL: pa.URL, Fanout: 1, Rounds: 1, Cooldown: time.Nanosecond}
-	blockBackgroundWorkers(pt)
-	prov := &provider.Provider{Name: "opencode", Type: "openai-compatible", BaseURL: up.URL, AuthMode: "none"}
-
-	_, err := pt.Acquire(context.Background(), RequestContext{Provider: "opencode"}, prov)
-	if err == nil || !strings.Contains(err.Error(), "no unique session") {
-		t.Fatalf("err = %v, want a session-supply refusal", err)
-	}
-	time.Sleep(300 * time.Millisecond)
-	api.mu.Lock()
-	n := api.rotateN
-	api.mu.Unlock()
-	if n != 0 {
-		t.Fatalf("rotateN=%d: отказ по сессиям не должен крутить WARP", n)
 	}
 }
 

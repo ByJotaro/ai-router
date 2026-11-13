@@ -1,26 +1,27 @@
 package route
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/ByJotaro/ai-router/internal/provider"
 )
 
 // TestPinnedUATupleMatchesOneShippedBuild pins the UA triple to the CLI build
-// captured on 2026-10-22 (opencode 1.19.4 + provider-utils 4.0.23 + bun 1.4.4).
-// A tuple that never shipped together (the old 4.0.40/1.3.14 pair) is a stable
-// non-client fingerprint: no real client can ever produce it.
+// captured 2026-11-11 (opencode 1.19.5 + provider-utils 4.0.23 + bun 1.4.0):
+// that tuple answers 200 on the free lane, while the previous capture
+// (1.19.4 + 4.0.23 + 1.4.4) started drawing 429s the same day. A tuple that
+// never shipped together (the old 4.0.40/1.3.14 pair) is a stable non-client
+// fingerprint: no real client can ever produce it.
+// The runtime pin is ignored on purpose: this test pins the DEFAULT, and
+// another test's setPinnedUA must not leak into it.
 func TestPinnedUATupleMatchesOneShippedBuild(t *testing.T) {
-	ua := pinnedUA()
-	if !strings.Contains(ua, "ai-sdk/provider-utils/4.0.23") {
-		t.Fatalf("UA не совпадает с захваченным CLI: %q", ua)
-	}
-	if !strings.Contains(ua, "runtime/bun/1.4.4") {
-		t.Fatalf("UA не совпадает с захваченным CLI: %q", ua)
-	}
-	if !strings.HasPrefix(ua, "opencode/") {
-		t.Fatalf("UA без префикса opencode: %q", ua)
+	prev, _ := pinnedUAVer.Load().(string)
+	pinnedUAVer.Store("")
+	t.Cleanup(func() { pinnedUAVer.Store(prev) })
+
+	const captured = "opencode/1.19.5 ai-sdk/provider-utils/4.0.23 runtime/bun/1.4.0"
+	if got := pinnedUA(); got != captured {
+		t.Fatalf("UA не совпадает с захваченным CLI (%q): %q", captured, got)
 	}
 }
 

@@ -19,7 +19,7 @@ import (
 func RunApp(app *App, show bool, minimized bool) error {
 	trayDone := startTray(app)
 	opts := &options.App{
-		Title:             "ai-router — панель ядра",
+		Title:             uiTitle(),
 		Width:             1080,
 		Height:            700,
 		MinWidth:          760,

@@ -36,9 +36,11 @@
 .w01-lvchips .chip.on { color: var(--ink); border-color: var(--border-2); background: var(--panel-3); opacity: 1; }
 .w01-lvchips .chip.on b { color: var(--ink); }
 .w01-lvchips .chip.w01-lvl-info.on::before { background: var(--info); border-color: var(--info); }
+.w01-lvchips .chip.w01-lvl-retry.on::before { background: var(--retry); border-color: var(--retry); }
 .w01-lvchips .chip.w01-lvl-warn.on::before { background: var(--warn); border-color: var(--warn); }
 .w01-lvchips .chip.w01-lvl-error.on::before { background: var(--danger); border-color: var(--danger); }
 .w01-lvchips .chip.w01-lvl-error.on b { color: var(--danger); }
+.w01-lvchips .chip.w01-lvl-retry.on b { color: var(--retry); }
 .w01-log-kind-t { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink2); }
 .w01-lt-sub { gap: 8px; }
 .w01-lt-state { cursor: pointer; letter-spacing: 0.4px; text-transform: none; margin-left: auto; }
@@ -80,6 +82,7 @@
 
 .w01-rib { display: block; width: 100%; height: auto; }
 .w01-seg-ok { fill: var(--ok); opacity: 0.85; }
+.w01-seg-retry { fill: var(--retry); opacity: 0.9; }
 .w01-seg-warn { fill: var(--warn); opacity: 0.9; }
 .w01-seg-err { fill: var(--danger); opacity: 0.92; }
 .w01-env-dot { fill: var(--ink); }
@@ -99,6 +102,7 @@
 .w01-row.w01-r-error td { color: var(--ink); }
 .w01-row.w01-r-error td:first-child { box-shadow: inset 2px 0 0 var(--danger); }
 .w01-row.w01-r-warn td:first-child { box-shadow: inset 2px 0 0 var(--warn); }
+.w01-row.w01-r-retry td:first-child { box-shadow: inset 2px 0 0 var(--retry); }
 .w01-row.w01-r-info td:first-child { box-shadow: inset 2px 0 0 transparent; }
 .w01-foot { padding: 9px 10px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.4px; color: var(--faint); }
 .w01-errmark { display: inline-block; width: 13px; height: 13px; line-height: 13px; text-align: center; border-radius: 50%;
@@ -106,5 +110,7 @@
 .w01-lvl { display: inline-block; padding: 1px 7px; border-radius: 999px; font-family: var(--mono); font-size: 10px;
   letter-spacing: 0.6px; text-transform: uppercase; border: 1px solid var(--border); color: var(--muted); }
 .w01-lvl-info { color: var(--muted); }
+.w01-lvl-retry { color: var(--retry); border-color: var(--retry-dim); background: var(--retry-dim); }
 .w01-lvl-warn { color: var(--warn); border-color: var(--warn-dim); background: var(--warn-dim); }
 .w01-lvl-error { color: var(--danger); border-color: var(--danger-dim); background: var(--danger-dim); }
+.w01-retrycut { font-style: normal; color: var(--retry); opacity: 0.85; }

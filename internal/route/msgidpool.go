@@ -72,10 +72,15 @@ func (m *MsgIDPool) dbPath() string {
 	if m.DBPath != "" {
 		return m.DBPath
 	}
-	if v := os.Getenv("AI_ROUTER_SESSION_DB"); v == "off" {
-		return ""
+	// Message ids still come from the TUI store by default: only the SESSION
+	// harvest moved to generation. An explicit path or "off" still wins.
+	if v := os.Getenv("AI_ROUTER_SESSION_DB"); v != "" {
+		if v == "off" {
+			return ""
+		}
+		return v
 	}
-	return opencodeDBPath()
+	return defaultOpencodeDB()
 }
 
 // fetchMsgIDs harvests recent message ids from the TUI database. Message ids

@@ -30,6 +30,11 @@
     pool_exhausted: 'пул · брейкер/исчерпан'
   };
   var CLASS_SHORT = { quota: 'квота', auth: 'авторизация', network: 'сеть', gate_terminal: 'гейт', pool_exhausted: 'пул' };
+  /* Подписи классов/типов уходят в DOM и в canvas: переводим в одном месте,
+     чтобы заголовки кнопок («…классом «quota · 429/5xx»») и холст не
+     расходились. В RU-режиме I18N.t возвращает строку как есть. */
+  function cLbl(c) { return I18N.t(CLASS_LBL[c] || c); }
+  function cShort(c) { return I18N.t(CLASS_SHORT[c] || c); }
   var KIND_TITLE = { start: 'старт', step: 'шаг', condition: 'условие', finish: 'финиш' };
   var KIND_HINT = {
     start: 'модель входа · подставляется в тело',
@@ -175,7 +180,7 @@
     var path = [], tl = [], winner = null, lastErr = null, stopped = false, skipped = [], ms = 0, visits = 0;
     var maxVisits = 8 * st.nodes.length + 8, pos = failIdx;
     var first = st.nodes[failIdx];
-    if (first) { path.push(first.id); lastErr = failCls; tl.push({ cls: 'fail', s: 'шаг «' + titleOf(first) + '» — отказ (' + (CLASS_SHORT[failCls] || failCls) + ')' }); }
+    if (first) { path.push(first.id); lastErr = failCls; tl.push({ cls: 'fail', s: 'шаг «' + titleOf(first) + '» — отказ (' + cShort(failCls) + ')' }); }
     pos = failIdx + 1;
     while (pos < st.nodes.length) {
       if (++visits > maxVisits) { tl.push({ cls: 'stop', s: 'граф зациклен — прервано после ' + maxVisits + ' посещений' }); break; }
@@ -430,27 +435,27 @@
       var lbl = n.kind === 'start' ? 'СТАРТ' : n.kind === 'step' ? 'ШАГ' : n.kind === 'condition' ? 'УСЛОВИЕ' : 'ФИНИШ';
       ctx.font = P.fontLbl;
       ctx.fillStyle = n.kind === 'condition' ? P.amber : P.faint;
-      ctx.fillText(lbl, mx0 + mk + 7, my0 + mk / 2);
+      ctx.fillText(I18N.t(lbl), mx0 + mk + 7, my0 + mk / 2);
       // заголовок
       var main = '', sub = '';
       if (n.kind === 'start') { main = n.model || 'модель входа'; sub = 'входящая модель'; }
       if (n.kind === 'step') { main = n.provider || '—'; sub = (n.q ? 'quota-only · ' : '') + (n.model || 'модель не выбрана'); }
       if (n.kind === 'condition') {
-        main = 'on: ' + ((n.on || ['*']).map(function (c) { return CLASS_SHORT[c] || c; }).join(' · ') || 'любой');
+        main = 'on: ' + ((n.on || ['*']).map(function (c) { return cShort(c); }).join(' · ') || 'любой');
         sub = n.stop ? '■ СТОП при совпадении' : (n.to ? 'прыжок на «' + titleOf(st.nodes.find(function (m) { return m.id === n.to; }) || { kind: 'step', provider: '?' }) + '»' : 'дальше по порядку');
       }
       if (n.kind === 'finish') { main = 'каскад завершён'; sub = 'вердикт = ошибка последнего шага'; }
       ctx.font = P.fontB; ctx.fillStyle = P.ink;
-      ctx.fillText(trunc(main, n.w - 34), n.x + 12, n.y + n.h / 2 - 6);
+      ctx.fillText(trunc(I18N.t(main), n.w - 34), n.x + 12, n.y + n.h / 2 - 6);
       ctx.font = P.fontS; ctx.fillStyle = P.ink2;
-      ctx.fillText(trunc(sub, n.w - 34), n.x + 12, n.y + n.h / 2 + 9);
+      ctx.fillText(trunc(I18N.t(sub), n.w - 34), n.x + 12, n.y + n.h / 2 + 9);
       // знаки симуляции
       if (win) {
         ctx.font = P.fontLbl; ctx.fillStyle = P.amber;
-        ctx.fillText('победитель', n.x + n.w - 62, n.y + 14);
+        ctx.fillText(I18N.t('победитель'), n.x + n.w - 62, n.y + 14);
       } else if (skip) {
         ctx.font = P.fontLbl; ctx.fillStyle = P.faint;
-        ctx.fillText('пропущен', n.x + n.w - 58, n.y + 14);
+        ctx.fillText(I18N.t('пропущен'), n.x + n.w - 58, n.y + 14);
       }
       ctx.restore();
     });
@@ -553,7 +558,7 @@
         '<i></i><span>' + KIND_TITLE[k] + '<small>' + KIND_HINT[k] + '</small></span></button>';
     }).join('');
     var simBtns = CLASSES.map(function (c) {
-      return '<button type="button" class="btn sm" data-sim="' + c + '" title="Симулировать отказ первого шага классом «' + CLASS_LBL[c] + '»">' + CLASS_SHORT[c] + '</button>';
+      return '<button type="button" class="btn sm" data-sim="' + c + '" title="Симулировать отказ первого шага классом «' + cLbl(c) + '»">' + cShort(c) + '</button>';
     }).join('');
     return '<div class="cbc cbc-full">' +
       '<div class="cbc-bar">' +
@@ -670,7 +675,7 @@
         var f4 = el('div', 'cbc-f'); f4.appendChild(el('label', null, 'Классы ошибки (on)'));
         var pick = el('div', 'cbc-pick');
         CLASSES.concat(['*']).forEach(function (c) {
-          var b = el('button', 'btn sm' + ((n.on || []).indexOf(c) >= 0 ? ' primary' : ''), CLASS_SHORT[c] || 'любой');
+          var b = el('button', 'btn sm' + ((n.on || []).indexOf(c) >= 0 ? ' primary' : ''), cShort(c) || 'любой');
           b.type = 'button';
           b.addEventListener('click', function () {
             var on = n.on || (n.on = []);
@@ -743,7 +748,7 @@
     if (!rows.length) { mx.appendChild(el('div', 'cbc-hint', 'шагов нет — матрица пуста')); return; }
     mx.style.gridTemplateColumns = 'minmax(92px,auto) repeat(' + CLASSES.length + ',minmax(64px,1fr))';
     mx.appendChild(el('div', 'cbc-mh', 'шаг ↓ / класс →'));
-    CLASSES.forEach(function (c) { mx.appendChild(el('div', 'cbc-mh', CLASS_SHORT[c])); });
+    CLASSES.forEach(function (c) { mx.appendChild(el('div', 'cbc-mh', cShort(c))); });
     rows.forEach(function (r) {
       mx.appendChild(el('div', 'cbc-mr', (r.i + 1) + ' · ' + (r.n.provider || '—')));
       CLASSES.forEach(function (c) {

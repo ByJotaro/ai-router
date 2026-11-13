@@ -16,11 +16,12 @@ import (
 //     bypass the transport they are pinning. The switch is forced off here;
 //     the sidecar's own tests live in internal/buntransport.
 //  2. Session ids are harvested from the local opencode.db. A clean machine
-//     (CI) has no such db, so the supply is empty and every lease that needs a
-//     session identity fails ("no unique session available for egress"). The
-//     seed below gives the process pool synthetic, correctly shaped ids;
-//     tests that pin a specific supply still install their own Fetch through
-//     seedSessionPool.
+//     (CI) has no such db, so the supply is empty; a pool lease then falls
+//     back to the per-egress generator (see
+//     TestAcquireGeneratesSessionWhenHarvestEmpty) instead of failing. The
+//     seed below still gives the process pool synthetic, correctly shaped ids
+//     for tests that assert the harvest path; tests that pin a specific supply
+//     install their own Fetch through seedSessionPool.
 func TestMain(m *testing.M) {
 	// Unconditional: a shell that exported OPENCODE_TRANSPORT=on would
 	// otherwise leak a sidecar child and break the test binary's exit. The

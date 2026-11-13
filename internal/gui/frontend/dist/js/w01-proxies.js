@@ -62,7 +62,7 @@ function w01PxWarpNums() {
   if (w.acquire_fail) items.push([nf(w.acquire_fail), "acquire fail", "w01-warnc", ""]);
   if (w.rotate_total != null) items.push([nf(w.rotate_total), "ротаций", "", ""]);
   if (w.restarts) items.push([nf(w.restarts), "рестартов", "w01-warnc", ""]);
-  if (w.uptime_s != null) items.push([Math.floor(w.uptime_s / 3600) + "ч " + Math.floor((w.uptime_s % 3600) / 60) + "м", "аптайм пула", "", ""]);
+  if (w.uptime_s != null) items.push([durHM(w.uptime_s), "аптайм пула", "", ""]);
   if (w.last_acquire_err) items.push([esc(W01.cut(w.last_acquire_err, 30)), "последняя ошибка acquire", "w01-bad", ""]);
   return W01.numline(items);
 }

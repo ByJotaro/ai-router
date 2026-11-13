@@ -215,3 +215,53 @@ func TestResponsesE2EValidation(t *testing.T) {
 		t.Fatalf("bad key must be 401, got %d", res3.StatusCode)
 	}
 }
+
+// TestResponsesReasoningPolicyReplacesClient: /v1/responses must apply the
+// operator's per-model model_reasoning exactly like /v1/chat/completions — a
+// client reasoning.effort must not cap a level set in the panel (2026-11-11:
+// deepseek set to max while clients still sent xhigh/high; the responses path
+// used to pass the client value through untouched).
+func TestResponsesReasoningPolicyReplacesClient(t *testing.T) {
+	seen := make(chan map[string]any, 1)
+	up := fakeUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/chat/completions") {
+			http.NotFound(w, r)
+			return
+		}
+		var req map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		select {
+		case seen <- req:
+		default: // a retry must not block the handler
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "chatcmpl-reason", "object": "chat.completion", "created": 1, "model": req["model"],
+			"choices": []any{map[string]any{"index": 0, "message": map[string]any{"role": "assistant", "content": "ok"}, "finish_reason": "stop"}},
+		})
+	})
+	p := &provider.Provider{
+		Name: "p", Type: "openai-compatible", BaseURL: up.URL,
+		APIKeys: []string{"upkey"}, Models: []string{"m1"},
+		ModelReasoning: map[string]string{"m1": "max"},
+	}
+	_, srv := newTestGateway(t, map[string]*provider.Provider{"p": p}, []config.KeyConf{vk("vkey")})
+	res, body := doReq(t, srv.URL, "/v1/responses", "POST", "vkey", map[string]any{
+		"model": "m1", "input": "hi",
+		"reasoning": map[string]any{"effort": "low"},
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", res.StatusCode, body)
+	}
+	var req map[string]any
+	select {
+	case req = <-seen:
+	default:
+		t.Fatal("upstream saw no chat request")
+	}
+	if got := req["reasoning_effort"]; got != "max" {
+		t.Fatalf("upstream reasoning_effort=%v, want max (client low must be replaced)", got)
+	}
+	if r, ok := req["reasoning"].(map[string]any); !ok || r["effort"] != "max" {
+		t.Fatalf("upstream reasoning=%v, want effort max", req["reasoning"])
+	}
+}

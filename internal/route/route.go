@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -673,10 +674,43 @@ type Result struct {
 	// wait" category so retried-but-successful requests stay visible instead
 	// of hiding inside latency.
 	WaitedMS int64
+	// Attempts/RetryMS come from the downstream hop's retry telemetry (the
+	// opencode sidecar answers x-sidecar-attempts/x-sidecar-retry-ms): how
+	// many provider-error answers the request ate before the served one and
+	// how much wall time they + the egress switch cost. Zero for hops that
+	// do not retry. Journal category "retried".
+	Attempts int64
+	RetryMS  int64
 }
 
 // ErrNoCandidates is returned when no provider serves the model.
 var ErrNoCandidates = errors.New("no provider serves model")
+
+// Retry telemetry answered by the opencode sidecar: the number of
+// provider-error answers a request ate before the served one, and the wall
+// time those retries cost (failed provider answers + the egress switch).
+// Absent on hops that do not retry.
+const (
+	sidecarAttemptsHeader = "X-Sidecar-Attempts"
+	sidecarRetryMSHeader  = "X-Sidecar-Retry-Ms"
+)
+
+func parseRetryTelemetry(h http.Header) (attempts, retryMS int64) {
+	if h == nil {
+		return 0, 0
+	}
+	if v := strings.TrimSpace(h.Get(sidecarAttemptsHeader)); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			attempts = n
+		}
+	}
+	if v := strings.TrimSpace(h.Get(sidecarRetryMSHeader)); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			retryMS = n
+		}
+	}
+	return attempts, retryMS
+}
 
 // UpstreamStatusError carries the last upstream HTTP status when every
 // attempt failed. Gateways surface it as the honest status (e.g. 429)
@@ -687,6 +721,12 @@ type UpstreamStatusError struct {
 	Status     int
 	Err        error
 	RetryAfter string
+	// Attempts/RetryMS mirror the hop's x-sidecar-* headers so a FAILED request
+	// records how many real provider calls it spent: the sidecar retries across
+	// egresses and only the success return used to carry the count, so 287
+	// incident 503s logged attempts=0 over 421 real calls (2026-11-04).
+	Attempts int64
+	RetryMS  int64
 }
 
 // isPoolExhaustedErr: 503-хвосты пула (бюджет выгорел, провайдер жив).
@@ -1337,6 +1377,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 	}
 	var lastErr error
 	lastStatus := 0
+	var lastAttempts, lastRetryMS int64
 	// lastRetryAfter удалён: outward RA стёрт (swap mode 2026-09-11).
 	// Внутренний key-backoff живёт через pl.Report выше.
 	seenProxy := map[string]bool{}
@@ -1458,6 +1499,10 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 		// opencode-zen), not reach the client as a terminal answer.
 		if status == 401 || status == 403 || status == 404 || status == 408 || status == 429 || status == 524 || status >= 500 {
 			lastStatus = status
+			// The hop may have retried across egresses before this failure; keep
+			// its count for the terminal error (the success return parses the
+			// same headers). Without this a failed request logged attempts=0.
+			lastAttempts, lastRetryMS = parseRetryTelemetry(res.Header)
 			// 403 region_error on a pool lease: the MODEL is not served in
 			// this egress region (muse-spark), another egress may serve
 			// it — swap to a fresh lease instead of failing terminally.
@@ -1488,7 +1533,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 				// pinned-per-egress до 72h expiry).
 				noteSessionGate(getSessionPool(), res)
 				lastErr = fmt.Errorf("provider %s: Forbidden (%s) [%s]", p.Name, gateExcerpt(peek), gateTerminalMarker)
-				return nil, &UpstreamStatusError{Status: status, Err: lastErr}
+				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
 			}
 			// 403 на pool-лизе: свап на свежий лиз внутри провайдера
 			// (2026-09-16: клиент 403 не видит вообще). Region-body —
@@ -1513,7 +1558,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 					// выше: peeked-гейт тоже терминальный вердикт аккаунта.
 					noteSessionGate(getSessionPool(), res)
 					lastErr = fmt.Errorf("provider %s: Forbidden (%s) [%s]", p.Name, gateExcerpt(peek), gateTerminalMarker)
-					return nil, &UpstreamStatusError{Status: status, Err: lastErr}
+					return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
 				}
 				res.Body.Close()
 				lastErr = fmt.Errorf("provider %s: %s", p.Name, http.StatusText(status))
@@ -1531,8 +1576,22 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 			if key != nil {
 				pl.Report(key, status, retryAfter)
 			}
-			res.Body.Close()
-			lastErr = fmt.Errorf("provider %s: %s", p.Name, http.StatusText(status))
+			// Keep the upstream's own reason for a 400: the image-input
+			// refusal is actionable (another egress may have image support)
+			// and the gateway shapes it as a retryable 503, never a fatal 400.
+			if status == http.StatusBadRequest {
+				peek, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
+				if ex := errorExcerpt(peek); ex != "" {
+					res.Body.Close()
+					lastErr = fmt.Errorf("provider %s: %s [%s]", p.Name, http.StatusText(status), ex)
+				} else {
+					res.Body.Close()
+					lastErr = fmt.Errorf("provider %s: %s", p.Name, http.StatusText(status))
+				}
+			} else {
+				res.Body.Close()
+				lastErr = fmt.Errorf("provider %s: %s", p.Name, http.StatusText(status))
+			}
 			if status == http.StatusTooManyRequests && isOpencodeUpstream(p) && sessionSwaps < maxSessionSwaps {
 				// MarkDead unpins the id; the extra attempt re-picks a live one.
 				if sid := sessionGateID(res); sid != "" {
@@ -1554,11 +1613,11 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 				if status != http.StatusForbidden && status != http.StatusNotFound {
 					r.recordBreakerFailure(p, model, lastErr.Error())
 				}
-				return nil, &UpstreamStatusError{Status: status, Err: lastErr}
+				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
 			}
 			if status >= 500 && act == "" {
 				r.recordBreakerFailure(p, model, lastErr.Error())
-				return nil, &UpstreamStatusError{Status: status, Err: lastErr}
+				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
 			}
 			continue
 		}
@@ -1582,7 +1641,10 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 		if src := res.Header.Get(egressSourceHeader); src != "" {
 			proxyID = src
 		}
-		return &Result{Provider: p.Name, Status: status, Header: res.Header, Resp: res, ConnectionID: conn, Model: model, Proxy: proxyID, WaitedMS: waited}, nil
+		// Retry telemetry from the hop that actually retried (sidecar): its
+		// response carries the count and the wall time the retries cost.
+		attempts, retryMS := parseRetryTelemetry(res.Header)
+		return &Result{Provider: p.Name, Status: status, Header: res.Header, Resp: res, ConnectionID: conn, Model: model, Proxy: proxyID, WaitedMS: waited, Attempts: attempts, RetryMS: retryMS}, nil
 	}
 	// NO home-IP responses-fallback: the old path dialed opencode.ai direct
 	// (newClient, no proxy) and exposed the home IP, which the upstream keys
@@ -1611,7 +1673,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 		return nil, lastErr
 	}
 	if lastStatus != 0 {
-		return nil, &UpstreamStatusError{Status: lastStatus, Err: lastErr}
+		return nil, &UpstreamStatusError{Status: lastStatus, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
 	}
 	return nil, lastErr
 }
@@ -1732,6 +1794,45 @@ func (r *Router) doRequest(ctx context.Context, cl *http.Client, p *provider.Pro
 	}
 	if err != nil {
 		return nil, 0, err
+	}
+	// A free-pool engine may reject images while its neighbours accept them
+	// ("image input is not available on this engine", measured 2026-11-05:
+	// one- and five-image probes read the PNG with 200, while a session with
+	// five history images kept 400-ing from a text-only engine instance). The
+	// turn must not die there: strip the image parts and retry ONCE on the same
+	// egress/transport, so a text-only instance answers the stripped body
+	// instead of failing a whole session. Any other 400 is untouched.
+	if res.StatusCode == http.StatusBadRequest && bodyHasImageParts(body) {
+		if raw, ok := readSmallBody(res); ok {
+			if isImageInputUnavailable(raw) {
+				if stripped, ok2 := stripImageParts(body); ok2 {
+					req2 := req.Clone(ctx)
+					req2.Body = io.NopCloser(bytes.NewReader(stripped))
+					req2.ContentLength = int64(len(stripped))
+					var res2 *http.Response
+					var err2 error
+					if isOpencodeUpstream(p) && buntransport.Enabled() && proxy != "" {
+						res2, err2 = buntransport.Do(ctx, cl, req2, proxy)
+					} else {
+						res2, err2 = cl.Do(req2)
+					}
+					if err2 == nil {
+						res = res2
+						if r.OnEvent != nil {
+							r.OnEvent("ai.image_omitted", map[string]any{
+								"provider": p.Name, "model": model, "status": res2.StatusCode,
+							})
+						}
+					} else {
+						res.Body = io.NopCloser(bytes.NewReader(raw))
+					}
+				} else {
+					res.Body = io.NopCloser(bytes.NewReader(raw))
+				}
+			} else {
+				res.Body = io.NopCloser(bytes.NewReader(raw))
+			}
+		}
 	}
 	// Two-protocol providers (zen): some models answer chat/completions,
 	// others only the Responses protocol. On a non-retryable upstream
@@ -2022,18 +2123,25 @@ func withModel(body []byte, model string) []byte {
 	return out
 }
 
-// WithReasoning returns a copy of body with explicit reasoning effort,
-// unless the client already set any reasoning param (never override).
-// Exported for the gateway hook: GUI override wins over family auto-max,
-// client-explicit wins over both.
-func WithReasoning(body []byte, effort string) []byte {
+// WithReasoning returns a copy of body with the operator's per-model reasoning
+// effort, REPLACING whatever reasoning param the client set. This is a POLICY
+// field (GUI/config model_reasoning), not a default: a client launched with a
+// stale level must not cap what the operator set — 2026-11-11 deepseek was set
+// to max while OMP sent reasoning_effort=xhigh (its --thinking flag), and the
+// old "client-explicit wins" rule silently kept xhigh. The client's previous
+// effort and the effort actually sent are returned so the caller can report an
+// override.
+func WithReasoning(body []byte, effort string) (out []byte, client, sent string) {
 	var m map[string]any
 	if err := json.Unmarshal(body, &m); err != nil {
-		return body
+		return body, "", ""
 	}
 	for _, k := range []string{"reasoning", "reasoning_effort", "reasoning_level", "thinking", "reasoning_config", "thinking_level"} {
-		if _, ok := m[k]; ok {
-			return body
+		if v, ok := m[k]; ok {
+			if client == "" {
+				client = reasoningEffortString(v)
+			}
+			delete(m, k) // one control shape only: a leftover alias would fight the override
 		}
 	}
 	// zen Console validates reasoning_effort per model family: muse-spark
@@ -2056,9 +2164,26 @@ func WithReasoning(body []byte, effort string) []byte {
 	m["reasoning"] = map[string]any{"effort": outEffort, "budget_tokens": 32768}
 	out, err := json.Marshal(m)
 	if err != nil {
-		return body
+		return body, client, ""
 	}
-	return out
+	return out, client, outEffort
+}
+
+// reasoningEffortString reads the effort out of the shapes clients send:
+// a bare string ("xhigh") or an object ({"effort":"xhigh"} / {"type":"enabled"}).
+func reasoningEffortString(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case map[string]any:
+		if e, ok := x["effort"].(string); ok {
+			return e
+		}
+		if t, ok := x["type"].(string); ok {
+			return t
+		}
+	}
+	return ""
 }
 
 func newClient(p *provider.Provider) *http.Client {

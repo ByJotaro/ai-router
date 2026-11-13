@@ -2002,6 +2002,8 @@ func TestPoolWalksNineBeforeHonest429(t *testing.T) {
 // TestPoolTriedGroupsBy48: два бэкенда за одним IP — одна бюджетная группа.
 // tried считает группы: повтор группы = walking on, не fresh-попытка.
 func TestPinnedUARefreshesFromNpm(t *testing.T) {
+	prev, _ := pinnedUAVer.Load().(string)
+	t.Cleanup(func() { pinnedUAVer.Store(prev) }) // this test pins 9.9.9: never leak it into later tests
 	npm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"version":"9.9.9"}`)

@@ -33,7 +33,7 @@ every module is useful on its own.
 | **research** | Alpha · in development | Measurement harness: backtests, experiments, evidence |
 | **pc-care** | Private · beta | Windows cleanup and health: what takes disk, what is safe to remove |
 
-![Home tab](docs/screenshots/home.png)
+![Home tab](docs/screenshots/en/home.png)
 
 ## What it is
 
@@ -64,6 +64,8 @@ SQLite `state.db`. Windows 10/11 + WebView2.
 - **Combo presets** — several providers behind one virtual model name.
 - **Control panel** — 7 tabs: Home, Providers, Combos, Usage, Logs, Proxies,
   Settings. Dark theme, tray, demo mode `?demo=1` with no live data.
+- **Interface language** — Russian (source) and English: Settings → Interface
+  language, or `?lang=en`; the choice is remembered by the panel.
 - **Observability** — ring log, request and egress event log, token charts,
   activity calendar, provider and key health.
 - **Hub module** — registration in a hub, actions `chat.complete/test/usage`,
@@ -71,17 +73,25 @@ SQLite `state.db`. Windows 10/11 + WebView2.
 
 ## Screenshots
 
+**Home** — 30-day summary, token chart, activity calendar:
+
+![Home tab](docs/screenshots/en/home.png)
+
 **Providers** — pools, breakers, tiers, key health:
 
-![Providers tab](docs/screenshots/providers.png)
+![Providers tab](docs/screenshots/en/providers.png)
 
 **Logs** — requests, egress events, filters:
 
-![Logs tab](docs/screenshots/logs.png)
+![Logs tab](docs/screenshots/en/logs.png)
 
-All screenshots are taken at the panel's default width (1080 px). Heights
-differ: Home and Providers are taller than the 700 px launch window so the whole
-page fits, Logs keeps the default 700 px.
+**Settings** — the interface language switch (`ui.language`) is here:
+
+![Settings tab](docs/screenshots/en/settings.png)
+
+All screenshots are taken at the panel's default width (1080 px) at 2× pixel
+density, on demo data (`?demo=1&seed=42`). The same screens in Russian live in
+[docs/screenshots/ru](docs/screenshots/ru) (`?lang=ru`).
 
 ## Requirements
 
@@ -220,6 +230,15 @@ curl -N http://127.0.0.1:9001/v1/chat/completions `
   -d '{"model":"high-availability","stream":true,"messages":[{"role":"user","content":"2+2"}]}'
 ```
 
+## Sidecar (free-tier transport)
+
+`sidecar/` is a Bun front for keyless free-tier inference: one conversation keeps one
+`(session, egress, fingerprint)` trio, a hard `429` parks that egress's `/64` and the
+request hops to another one, and an exhausted pool answers `503` instead of poisoning
+the session with the upstream quota body. It needs an egress pool API (warp-router or
+compatible) and never opens VPN connections itself. Setup, environment and the pool
+contract: [sidecar/README.md](sidecar/README.md).
+
 ## How it works
 
 ```mermaid
@@ -257,6 +276,7 @@ internal/gui/            panel (Wails + vanilla JS, dist bundled)
 internal/hubmod/         hub module: registration, actions, events
 internal/logring/        ring log
 scripts/e2e.ps1          end-to-end check
+sidecar/                 Bun front for free-tier transport (egress pool, pins, parks)
 docs/compose/spec/       historical module spec
 ```
 

@@ -38,6 +38,12 @@ type RequestEvent struct {
 	// serving it (0 = immediate). Distinct journal category: a retried-but-
 	// successful request is a success, but not a healthy-pool success.
 	WaitedMS int64 `json:"waited_ms"`
+	// Attempts/RetryMS: the downstream hop retried this request after a
+	// provider error; Attempts is how many error answers preceded the served
+	// one, RetryMS the wall time they + the hop's egress switch cost. Journal
+	// category "retried" (0 = answered on the first try).
+	Attempts int64 `json:"attempts"`
+	RetryMS  int64 `json:"retry_ms"`
 	RID        string   `json:"rid"`
 	// CostCents is the USD spend in cents computed from the model price
 	// catalog (0 when pricing is unavailable). Set by the gateway before

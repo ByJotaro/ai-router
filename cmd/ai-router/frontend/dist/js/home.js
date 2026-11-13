@@ -85,7 +85,7 @@ function homeKPIs(host) {
   const today = se.length ? se[se.length - 1] : null;
   const fmt = n => n >= 1e9 ? (n / 1e9).toFixed(2) + "G" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : "" + n;
   const h = '<div class="kpi"><div class="label">Провайдеры живы</div><div class="val ' + (alive === eps.length ? 'good' : '') + '">' + alive + ' / ' + eps.length + '</div><div class="sub">ключи живы · брейкер closed</div></div>'
-    + '<div class="kpi"><div class="label">Запросы сегодня</div><div class="val">' + (today ? today.requests : 0) + '</div><div class="sub">30 дн: ' + totR.toLocaleString('ru-RU') + ' · $' + (DEMO ? totC : Math.round(totC / 100)).toLocaleString('ru-RU') + '</div></div>'
+    + '<div class="kpi"><div class="label">Запросы сегодня</div><div class="val">' + (today ? today.requests : 0) + '</div><div class="sub">30 дн: ' + totR.toLocaleString((typeof I18N !== 'undefined' && I18N.locale) || 'ru-RU') + ' · $' + (DEMO ? totC : Math.round(totC / 100)).toLocaleString((typeof I18N !== 'undefined' && I18N.locale) || 'ru-RU') + '</div></div>'
     + '<div class="kpi"><div class="label">Токены · 30 дн</div><div class="val">' + fmt(totP + totQ) + '</div><div class="sub">вход ' + fmt(totP) + ' · выход ' + fmt(totQ) + '</div></div>'
     + '<div class="kpi"><div class="label">Паузы / ошибки</div><div class="val ' + ((brkOpen || errN) ? 'bad' : 'good') + '">' + brkOpen + ' / ' + errN + '</div><div class="sub">' + (brkOpen ? brkOpen + ' на паузе' : 'все каналы работают') + ' · лента 40</div></div>';
   if (host._h !== h) { host._h = h; host.innerHTML = h; }
@@ -378,7 +378,7 @@ function renderUniHeaders(){
     var st = S.status || {};
     var up = +st.uptime_s || 0, uh = Math.floor(up / 3600), um = Math.floor(up % 3600 / 60);
     var gw = st.gateway || "", ver = st.version || "";
-    var base = gw + " · v" + ver + " · аптайм " + uh + "ч " + um + "м";
+    var base = gw + " · v" + ver + " · аптайм " + durHM(up);
     var brkOpen = (S.breakers || []).filter(function(b){ return b.state === "open"; }).length;
     var liveTxt = "● LIVE · " + (brkOpen ? ("пауза: " + brkOpen) : "все каналы работают");
     UNI_HDR_TABS.forEach(function(p){
@@ -406,7 +406,7 @@ function renderHomeHeader(){
     var up = +st.uptime_s || 0, uh = Math.floor(up / 3600), um = Math.floor(up % 3600 / 60);
     var gw = st.gateway || "", ver = st.version || "";
     var meta = $("#home-meta");
-    if(meta){ var t = gw + " · v" + ver + " · аптайм " + uh + "ч " + um + "м"; meta.textContent = t; meta.title = t; }
+    if(meta){ var t = gw + " · v" + ver + " · аптайм " + durHM(up); meta.textContent = t; meta.title = t; }
     var brkOpen = (S.breakers || []).filter(function(b){ return b.state === "open"; }).length;
     var errN = (S.logs || []).filter(function(l){ return l.status !== "ok"; }).length;
     var live = $("#home-live"), txt = $("#home-live-txt");

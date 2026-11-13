@@ -1,0 +1,647 @@
+/* ============================================================
+   c08 · «Бланк узла» — экран провайдера.
+   Скоуп: #provDetail. Токены — css/tokens.css (тема mono).
+   Идея: не «карточки», а печатный бланк — секции отделены
+   hairline-линейками, подписи капсом с красной засечкой, крупные
+   цифры sans + mono для машинных значений. Окно заперто: шапка,
+   полоса и разделы стоят, листается только тело раздела.
+   ============================================================ */
+
+/* ---- окно: деталь занимает ровно высоту .content ---- */
+/* home.css:678-680 перебивает лок !important-ом при той же специфичности —
+   поэтому селекторы усилены html body (иначе 100 строк растягивают карточку). */
+html body .content.prov-open{overflow:hidden !important;display:flex !important;flex-direction:column;max-width:none !important;width:100% !important}
+html body .content.prov-open #panel-providers.tab-panel.active{display:flex !important;flex-direction:column;height:100% !important;min-height:0;gap:0;padding:0;overflow:hidden;max-width:none}
+html body .content.prov-open #panel-providers .hd{flex:none}
+html body .content.prov-open #provDetail{display:flex !important;flex-direction:column;flex:1 1 auto;min-height:0;min-width:0;overflow:hidden !important;margin:0;padding:0;height:auto}
+
+#provDetail .c8{--c8-h:26px;--c8-r:8px;--c8-rp:10px;--c8-rm:4px;display:flex;flex-direction:column;flex:1 1 auto;min-height:0;min-width:0;padding:10px 20px 0;font-family:var(--sans);color:var(--text)}
+
+/* ================= паспортная строка ================= */
+.c8-top{flex:none;display:flex;align-items:flex-start;gap:10px;min-width:0;padding-bottom:9px}
+.c8-back{width:28px;height:28px;flex:none;margin-top:2px;padding:0;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);color:var(--ink2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:color var(--tr),border-color var(--tr),background var(--tr)}
+.c8-back:hover{color:var(--amber);border-color:var(--amber);background:var(--hover)}
+.c8-back svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.c8-back:focus-visible{outline:1px solid var(--amber);outline-offset:2px}
+.c8-id{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
+.c8-id1{display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap}
+.c8-nm{margin:0;font:600 25px/1.06 var(--sans);letter-spacing:-.2px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
+.c8-plate{flex:none;width:28px;height:28px;border-radius:6px;border:1px solid var(--rule);background:var(--canvas);color:var(--ink2);font:700 10px/1 var(--mono);letter-spacing:.6px;display:inline-flex;align-items:center;justify-content:center}
+.c8-tags{display:flex;align-items:center;gap:5px;flex:none}
+.c8-tag{font:9px/1 var(--mono);letter-spacing:1.3px;text-transform:uppercase;color:var(--ink2);border:1px solid var(--rule);border-radius:4px;padding:3px 6px 2px}
+.c8-tag.hot{color:var(--amber);border-color:var(--amber)}
+.c8-id2{display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap;font:10px var(--mono);color:var(--faint)}
+.c8-url{display:inline-flex;align-items:center;gap:5px;max-width:min(340px,52vw);padding:0;border:0;background:none;cursor:pointer;font:10.5px var(--mono);color:var(--ink2);min-width:0;text-align:left}
+.c8-url code{font:10.5px var(--mono);color:inherit;background:none;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.c8-url:hover{color:var(--ink)}
+.c8-url:focus-visible{outline:1px solid var(--amber);outline-offset:2px;border-radius:3px}
+.c8-id2 .sep{color:var(--rule);flex:none}
+.c8-id2 b{color:var(--ink2);font-weight:500}
+.c8-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;margin-left:auto}
+.c8-acts{display:flex;align-items:center;gap:5px;flex:none}
+.c8-b{height:26px;padding:0 10px;border-radius:8px;border:1px solid var(--rule);background:transparent;color:var(--ink2);font:10px var(--mono);letter-spacing:.3px;cursor:pointer;white-space:nowrap;transition:color var(--tr),border-color var(--tr),background var(--tr),filter var(--tr)}
+.c8-b:hover{color:var(--ink);border-color:var(--ink2);background:var(--hover)}
+.c8-b:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+.c8-b.prim{background:var(--accent-grad);border-color:transparent;color:var(--accent-ink);font-weight:600}
+.c8-b.prim:hover{filter:brightness(1.12)}
+.c8-b.ghost{border-color:transparent;color:var(--faint)}
+.c8-b.ghost:hover{color:var(--ink);border-color:var(--rule)}
+
+/* статус-чип */
+.c8-st{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:6px;border:1px solid var(--rule);background:var(--canvas);font:9.5px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--ink2);white-space:nowrap}
+.c8-st i{width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+.c8-st.on{color:var(--ink);border-color:var(--ink2)}
+.c8-st.warn{color:var(--ink);border-color:var(--ink2);background:var(--panel-3)}
+.c8-st.err{color:var(--accent-2);border-color:var(--accent-2);background:var(--accent-soft)}
+.c8-st.dim{color:var(--faint)}
+
+/* ================= полоса показателей (≤76 px) ================= */
+.c8-rail{flex:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);min-width:0}
+.c8-cell{position:relative;display:flex;flex-direction:column;gap:0;min-width:0;padding:6px 11px 7px;border-left:1px solid var(--rule)}
+.c8-cell:first-child{border-left:0;padding-left:0}
+.c8-cell::before{content:"";position:absolute;left:0;right:0;top:-1px;height:1px;background:transparent}
+.c8-cell.bad::before{background:var(--accent-2)}
+.c8-cell .k{font:9px/1.1 var(--mono);letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:baseline;gap:5px}
+.c8-cell .k em{font-style:normal;letter-spacing:0;text-transform:none;color:var(--faint);margin-left:auto}
+.c8-cell .v{margin-top:2px;font:600 20px/1.05 var(--sans);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.c8-cell .v small{font:400 10px var(--mono);color:var(--faint);margin-left:2px;letter-spacing:0}
+.c8-cell.bad .v{color:var(--accent-2)}
+.c8-cell.dim .v{color:var(--ink2)}
+.c8-cell .b{display:flex;gap:2px;height:3px;margin:4px 0 3px;min-width:0}
+.c8-cell .b:empty{display:none}
+.c8-cell .b i{flex:1 1 0;min-width:0;border-radius:1px;background:var(--cell0)}
+.c8-cell .b i.on{background:var(--ink2)}
+.c8-cell.bad .b i.on{background:var(--accent-2)}
+.c8-cell .b.line{height:3px;background:var(--cell0);border-radius:1px;display:block;overflow:hidden}
+.c8-cell .b.line u{display:block;height:100%;background:var(--ink2)}
+.c8-cell.bad .b.line u{background:var(--accent-2)}
+.c8-cell .s{font:9.5px/1.15 var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.c8-cell .s b{color:var(--ink2);font-weight:500}
+.c8-cell .s em{font-style:normal;color:var(--accent-2)}
+
+/* ================= разделы ================= */
+.c8-nav{flex:none;display:flex;align-items:center;gap:0;min-width:0;border-bottom:1px solid var(--rule)}
+.c8-nav button{position:relative;height:34px;padding:0 12px;border:0;background:none;color:var(--faint);font:10px var(--mono);letter-spacing:1.7px;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:color var(--tr)}
+.c8-nav button:first-child{padding-left:0;padding-right:16px}
+.c8-nav button:hover{color:var(--ink2)}
+.c8-nav button[aria-selected="true"]{color:var(--ink)}
+.c8-nav button[aria-selected="true"]::after{content:"";position:absolute;left:0;right:12px;bottom:-1px;height:2px;background:var(--amber)}
+.c8-nav button:first-child[aria-selected="true"]::after{right:14px}
+.c8-nav button:focus-visible{outline:1px solid var(--amber);outline-offset:-3px}
+.c8-nav .n{margin-left:5px;font-size:9px;letter-spacing:0;color:var(--faint);font-variant-numeric:tabular-nums}
+.c8-nav button[aria-selected="true"] .n{color:var(--ink2)}
+
+.c8-body{flex:1 1 auto;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.c8-scr{display:none;min-width:0}
+.c8-scr.on{display:block;flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:10px 2px 18px 0;scrollbar-width:thin;scrollbar-color:var(--border-2) transparent}
+
+/* ---- секция «бланка»: подпись + линейка, без рамки-коробки ---- */
+.c8-sec{min-width:0;display:flex;flex-direction:column}
+.c8-sh{display:flex;align-items:center;gap:8px;min-width:0;padding:0 0 5px;border-bottom:1px solid var(--rule);margin-bottom:7px}
+.c8-sh .t{position:relative;padding-left:9px;font:9.5px var(--mono);letter-spacing:1.9px;text-transform:uppercase;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c8-sh .t::before{content:"";position:absolute;left:0;top:1px;width:2px;height:8px;background:var(--amber)}
+.c8-sh .h{font:9.5px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.c8-sh .sp{flex:1 1 auto;min-width:0}
+.c8-empty{padding:6px 0;font:10.5px/1.5 var(--mono);color:var(--faint)}
+.c8-note{margin-top:7px;font:10px/1.45 var(--mono);color:var(--faint)}
+.c8-note.bad{color:var(--accent-2)}
+.c8-hint{font:9.5px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.c8-link{padding:0;border:0;background:none;color:var(--faint);font:9.5px var(--mono);letter-spacing:.4px;cursor:pointer;white-space:nowrap}
+.c8-link:hover{color:var(--amber)}
+
+/* ================= сводка ================= */
+.c8-sum{display:flex;flex-direction:column;gap:13px;min-width:0}
+#provDetail .c8-sum .c8-rail{border-top:0}
+
+/* отметки узла — заполненная форма, не алерт: три строки на hairline */
+.c8-marks .c8-sh{margin-bottom:2px}
+.c8-mk{display:flex;flex-direction:column;min-width:0}
+.c8-mk-r{display:grid;grid-template-columns:88px minmax(0,1fr) auto;align-items:center;gap:12px;min-width:0;padding:6px 0;
+  border-bottom:1px solid color-mix(in srgb,var(--rule) 55%,transparent);font:10.5px var(--mono);font-variant-numeric:tabular-nums}
+.c8-mk-r .k{font:8.5px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+.c8-mk-r .v{min-width:0;display:flex;align-items:baseline;gap:6px;overflow:hidden;color:var(--ink2);white-space:nowrap}
+.c8-mk-r .v b{font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c8-mk-r .v .ar{font-style:normal;color:var(--faint);flex:none;font-size:11px;line-height:1}
+.c8-mk-r .v .dot{width:2px;height:2px;border-radius:50%;background:var(--rule);align-self:center;flex:none}
+.c8-mk-r .v em{font-style:normal;color:var(--accent-2)}
+.c8-mk-r .v small{font:9px var(--mono);color:var(--faint);margin-left:1px}
+.c8-mk-r .s{justify-self:end;text-align:right;color:var(--faint);white-space:nowrap;display:flex;align-items:center;gap:8px;min-width:0}
+.c8-mk-r.bad .s{color:var(--ink2)}
+
+/* пульс: засечки последних вызовов, высота — задержка, красная — ошибка */
+.c8-pulse{display:inline-flex;align-items:flex-end;gap:3px;height:20px;flex:none}
+.c8-pulse i{width:4px;min-height:3px;max-height:20px;background:var(--ink2);border-radius:1px;opacity:.85}
+.c8-pulse i.e{background:var(--accent-2);opacity:1}
+.c8-pulse.idle{font:9.5px var(--mono);color:var(--faint);align-items:center;letter-spacing:.3px}
+
+/* две колонки сводки */
+.c8-duo{display:grid;grid-template-columns:minmax(0,1.28fr) minmax(0,1fr);gap:16px;align-items:start;min-width:0}
+
+/* квоты: три плитки */
+.c8-qts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.c8-qt{display:flex;flex-direction:column;gap:0;min-width:0;padding:7px 10px 8px;background:var(--card)}
+.c8-qt .k{font:9px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c8-qt .v{margin-top:2px;font:600 17px/1.05 var(--sans);color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c8-qt .v small{font:400 9.5px var(--mono);color:var(--faint);margin-left:2px;letter-spacing:0}
+.c8-qt.hot .v{color:var(--accent-2)}
+.c8-qt .bar{height:5px;margin:5px 0 4px;border-radius:2px;background:var(--cell0);overflow:hidden}
+.c8-qt .bar i{display:block;height:100%;background:var(--ink2);border-radius:2px}
+.c8-qt.hot .bar i{background:var(--accent-2)}
+.c8-qt .s{font:9.5px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.c8-qt .s b{color:var(--ink2);font-weight:500}
+
+/* топ моделей — доли */
+.c8-bars{display:flex;flex-direction:column;gap:1px;min-width:0}
+.c8-bar{display:grid;grid-template-columns:minmax(0,1fr) minmax(40px,96px) 38px 30px;align-items:center;gap:8px;min-width:0;padding:2px 0;font:10.5px var(--mono);font-variant-numeric:tabular-nums;border-bottom:1px solid transparent}
+.c8-bar:hover{background:var(--hover)}
+.c8-bar .n{color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c8-bar.zero .n{color:var(--faint)}
+.c8-bar .bar{height:5px;border-radius:1px;background:var(--cell0);overflow:hidden;min-width:0}
+.c8-bar .bar i{display:block;height:100%;background:var(--barfill);border-radius:1px}
+.c8-bar.zero .bar i{background:var(--cell0)}
+.c8-bar .c{text-align:right;color:var(--ink2)}
+.c8-bar .e{text-align:right;color:var(--faint)}
+.c8-bar .e.bad{color:var(--accent-2)}
+
+/* лента вызовов */
+.c8-tape{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px;min-width:0}
+.c8-call{display:grid;grid-template-columns:54px minmax(0,1fr) 40px 54px;align-items:baseline;gap:7px;min-width:0;padding:2px 0;font:10.5px var(--mono);font-variant-numeric:tabular-nums;border-bottom:1px solid color-mix(in srgb,var(--rule) 55%,transparent)}
+.c8-call:hover{background:var(--hover)}
+.c8-call .t{color:var(--faint);white-space:nowrap}
+.c8-call .n{color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c8-call .c{text-align:right;color:var(--ink2)}
+.c8-call .c.err{color:var(--accent-2)}
+.c8-call .c.ok{color:var(--faint)}
+.c8-call .ms{text-align:right;color:var(--faint)}
+.c8-call .ms b{font-weight:400;color:var(--ink2)}
+
+/* ============================================================
+   c75 · «одна строка — одно решение»
+   Ключи и модели — ведомости: строка = объект + масштаб + причина
+   + тумблер решения. Подробности раскрываются вторым уровнем.
+   Тест-слой — нижняя панель экрана «модели».
+   ============================================================ */
+#provDetail #c8-scr-1.on,#provDetail #c8-scr-2.on{display:flex;flex-direction:column;overflow:hidden;min-height:0;padding:0}
+#provDetail .c75-k,#provDetail .c75-mods{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;min-width:0}
+
+/* ---- верхняя строка: подпись + поиск + фильтры ---- */
+#provDetail .c75-kbar,#provDetail .c75-mbar{flex:none;display:flex;align-items:center;gap:8px;min-width:0;height:34px;border-bottom:1px solid var(--rule);padding:0 2px 0 0}
+#provDetail .c75-lab{font:9px var(--mono);letter-spacing:1.9px;text-transform:uppercase;color:var(--ink2);white-space:nowrap;flex:none}
+#provDetail .c75-lab.hot{color:var(--ink)}
+#provDetail .c75-lab.hot::before{content:"";display:inline-block;width:2px;height:8px;background:var(--accent-2);margin-right:6px;vertical-align:-1px}
+#provDetail .c75-find{position:relative;display:flex;align-items:center;min-width:0;flex:0 1 200px}
+#provDetail .c75-in{height:24px;min-width:0;width:100%;padding:0 22px 0 7px;border:1px solid var(--rule);border-radius:6px;background:var(--panel-2);color:var(--ink);font:10.5px var(--mono);outline:none;transition:border-color var(--tr),box-shadow var(--tr)}
+#provDetail .c75-in:focus{border-color:var(--accent-2);box-shadow:0 0 0 2px var(--accent-soft)}
+#provDetail .c75-in::placeholder{color:var(--faint)}
+#provDetail .c75-x{position:absolute;right:3px;top:50%;transform:translateY(-50%);width:16px;height:16px;padding:0;border:0;border-radius:4px;background:none;color:var(--faint);font:9px/1 var(--mono);cursor:pointer}
+#provDetail .c75-x:hover{color:var(--ink);background:var(--panel-3)}
+#provDetail .c75-x[hidden]{display:none}
+#provDetail .c75-chips{display:flex;align-items:center;min-width:0;border:1px solid var(--rule);border-radius:6px;overflow:hidden;flex:none}
+#provDetail .c75-chip{height:22px;padding:0 7px;border:0;border-left:1px solid var(--rule);background:transparent;color:var(--faint);font:9px var(--mono);cursor:pointer;white-space:nowrap;transition:color var(--tr),background var(--tr)}
+#provDetail .c75-chip:first-child{border-left:0}
+#provDetail .c75-chip:hover{color:var(--ink2);background:var(--panel-2)}
+#provDetail .c75-chip.on{color:var(--accent-ink);background:var(--accent-dim);box-shadow:inset 0 -2px 0 var(--accent-2)}
+#provDetail .c75-cnt{font:9px var(--mono);color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+#provDetail .c75-cnt:empty{display:none}
+#provDetail .c75-mods,.c75-k{min-width:0}
+#provDetail .sp{flex:1 1 auto;min-width:0}
+
+/* ---- кнопки строки управления ---- */
+#provDetail .c75-b{flex:none;height:24px;padding:0 9px;border-radius:6px;border:1px solid var(--rule);background:transparent;color:var(--ink2);font:9.5px var(--mono);letter-spacing:.3px;cursor:pointer;white-space:nowrap;transition:color var(--tr),border-color var(--tr),background var(--tr),filter var(--tr)}
+#provDetail .c75-b:hover{color:var(--ink);border-color:var(--ink2);background:var(--hover)}
+#provDetail .c75-b.prim{background:var(--accent-grad);border-color:transparent;color:var(--accent-ink);font-weight:600}
+#provDetail .c75-b.prim:hover{filter:brightness(1.12)}
+#provDetail .c75-b.danger:hover{color:var(--accent-2);border-color:var(--accent-2);background:var(--accent-soft)}
+#provDetail .c75-b.sort{font-variant-numeric:tabular-nums;letter-spacing:.2px}
+#provDetail .c75-link{padding:0;border:0;background:none;color:var(--faint);font:9px var(--mono);letter-spacing:.4px;cursor:pointer;white-space:nowrap}
+#provDetail .c75-link:hover{color:var(--ink2)}
+#provDetail .c75-link:disabled{opacity:.4;cursor:default}
+
+/* ---- добавление ---- */
+#provDetail .c75-add{flex:none;display:flex;gap:6px;min-width:0;padding:6px 0 2px;border-bottom:1px solid var(--rule)}
+#provDetail .c75-add .c75-in{flex:1 1 auto;padding:0 8px}
+
+/* ---- ключи: шапка, строки ---- */
+#provDetail .c75-kbody{flex:1 1 auto;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border-2) transparent}
+#provDetail .c75-khead,#provDetail .c75-kr{display:grid;grid-template-columns:20px 14px minmax(0,1fr) 208px 104px 62px;gap:8px;align-items:center;min-width:0}
+#provDetail .c75-khead{position:sticky;top:0;z-index:2;background:var(--paper);padding:4px 0 4px 6px;border-bottom:1px solid var(--rule);font:8px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+#provDetail .c75-khead span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+#provDetail .c75-kr{position:relative;min-height:27px;padding:3px 0 3px 6px;border-bottom:1px solid color-mix(in srgb,var(--rule) 55%,transparent);font:10.5px var(--mono);font-variant-numeric:tabular-nums;min-width:0}
+#provDetail .c75-kr:hover{background:var(--hover)}
+#provDetail .c75-kr::before{content:"";position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:1px;background:transparent}
+#provDetail .c75-kr.warn::before{background:var(--ink2)}
+#provDetail .c75-kr.err::before{background:var(--accent-2)}
+#provDetail .c75-kr.open{background:var(--panel-2)}
+#provDetail .c75-kr.open::before{background:var(--accent-2)}
+#provDetail .c75-n{font:9.5px var(--mono);color:var(--faint);letter-spacing:.4px;overflow:hidden}
+#provDetail .c75-exp{position:relative;width:14px;height:20px;flex:none;padding:0;border:0;background:none;color:var(--faint);cursor:pointer;transition:color var(--tr)}
+#provDetail .c75-exp::before{content:"";position:absolute;left:3px;top:50%;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:translateY(-65%) rotate(-45deg);transition:transform var(--tr)}
+#provDetail .c75-kr.open .c75-exp::before,#provDetail .c75-mr.open .c75-exp::before{transform:translateY(-30%) rotate(45deg)}
+#provDetail .c75-exp:hover{color:var(--ink)}
+#provDetail .c75-exp:focus-visible{outline:1px solid var(--accent-2);outline-offset:1px;border-radius:2px}
+#provDetail .c75-id{display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden}
+#provDetail .c75-alias{flex:0 1 auto;min-width:64px;max-width:190px;width:auto;field-sizing:content;height:19px;padding:0 3px;border:1px solid transparent;border-radius:4px;background:none;color:var(--ink);font:11px var(--mono);outline:none;text-overflow:ellipsis}
+#provDetail .c75-alias:hover{border-color:var(--rule);background:var(--panel-2)}
+#provDetail .c75-alias:focus{border-color:var(--accent-2);background:var(--panel-2);box-shadow:none}
+#provDetail .c75-mask{flex:0 1 auto;min-width:0;padding:1px 5px;border:1px dashed var(--rule);border-radius:4px;background:none;color:var(--faint);font:9px var(--mono);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#provDetail .c75-mask:hover{color:var(--ink2);border-color:var(--ink2);border-style:solid}
+#provDetail .c75-q{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;min-width:0}
+#provDetail .c75-mtr{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto 2px;column-gap:4px;row-gap:2px;align-items:baseline;min-width:0;overflow:hidden}
+#provDetail .c75-mtr i{font:8px var(--mono);color:var(--faint);font-style:normal;letter-spacing:.2px}
+#provDetail .c75-mtr b{font:9.5px var(--mono);color:var(--ink2);text-align:right;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap}
+#provDetail .c75-mtr .bar{grid-column:1/-1;height:2px;border-radius:1px;background:var(--cell0);overflow:hidden}
+#provDetail .c75-mtr .bar span{display:block;height:100%;background:var(--ink2)}
+#provDetail .c75-mtr.hot b{color:var(--accent-2)}
+#provDetail .c75-mtr.hot .bar span{background:var(--accent-2)}
+#provDetail .c75-st{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap;overflow:hidden;color:var(--faint);font:9.5px var(--mono)}
+#provDetail .c75-st i{width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+#provDetail .c75-st b{font-weight:400;letter-spacing:.2px}
+#provDetail .c75-st em{font-style:normal;color:var(--faint);overflow:hidden;text-overflow:ellipsis;min-width:0}
+#provDetail .c75-st.on{color:var(--ink2)}
+#provDetail .c75-st.warn{color:var(--ink)}
+#provDetail .c75-st.err{color:var(--accent-2)}
+#provDetail .c75-dec{justify-self:end;height:21px;min-width:0;padding:0 7px;border-radius:5px;border:1px solid var(--rule);background:transparent;color:var(--faint);font:9px var(--mono);letter-spacing:.2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color var(--tr),border-color var(--tr),background var(--tr)}
+#provDetail .c75-dec.on{color:var(--faint);border-color:var(--rule)}
+#provDetail .c75-dec:hover{color:var(--ink);border-color:var(--ink2)}
+#provDetail .c75-dec:not(.on){color:var(--accent-2);border-color:var(--accent-2);background:var(--accent-soft)}
+#provDetail .c75-dec:not(.on):hover{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+#provDetail .c75-dec:focus-visible{outline:1px solid var(--accent-2);outline-offset:1px}
+
+/* ---- раскрытая строка: второй уровень ---- */
+#provDetail .c75-kd,#provDetail .c75-md{padding:8px 10px 9px 51px;border-bottom:1px solid var(--rule);background:color-mix(in srgb,var(--panel-2) 55%,transparent);min-width:0;animation:c75-in 120ms ease}
+@keyframes c75-in{from{opacity:.35}to{opacity:1}}
+#provDetail .c75-dg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 18px;min-width:0}
+#provDetail .c75-dc{display:flex;flex-direction:column;gap:1px;min-width:0}
+#provDetail .c75-dc.wide{grid-column:1/-1}
+#provDetail .c75-dc .k{font:8px var(--mono);letter-spacing:1.3px;text-transform:uppercase;color:var(--faint);font-style:normal;white-space:nowrap}
+#provDetail .c75-dc .v{font:10.5px var(--mono);color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+#provDetail .c75-dc .v em{display:block;font:9px var(--mono);color:var(--faint);font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#provDetail .c75-dc .v code{font:10.5px var(--mono);color:var(--ink);background:none;padding:0}
+#provDetail .c75-dact{display:flex;align-items:center;gap:7px;min-width:0;margin-top:7px;padding-top:6px;border-top:1px solid color-mix(in srgb,var(--rule) 55%,transparent)}
+#provDetail .c75-hint{font:9px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#provDetail .c75-kph{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 0 4px 6px;border-bottom:1px dashed var(--rule);font:9.5px var(--mono);color:var(--faint);min-width:0}
+#provDetail .c75-kph b{font-weight:400;color:var(--faint)}
+#provDetail .c75-kph em{font-style:normal;color:var(--faint);white-space:nowrap}
+#provDetail .c75-foot{display:flex;align-items:center;gap:10px;min-width:0;margin:6px 0 10px;padding:7px 6px 0;border-top:1px solid color-mix(in srgb,var(--rule) 55%,transparent);font:9px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden}
+#provDetail .c75-foot .sp{flex:1 1 auto;min-width:0}
+
+/* ---- пустые состояния ---- */
+#provDetail .c75-empty{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;padding:16px 2px;font:10.5px var(--mono);color:var(--faint)}
+#provDetail .c75-empty b{color:var(--ink2);font-weight:500}
+#provDetail .c75-empty .c75-b{margin-left:auto}
+
+/* ---- общее поле (форма «связи» и добавление) ---- */
+.c8-in{height:26px;min-width:0;padding:0 7px;border-radius:8px;border:1px solid var(--rule);background:var(--panel-2);color:var(--ink);font:11px var(--mono);outline:none;transition:border-color var(--tr),box-shadow var(--tr)}
+.c8-in:focus{border-color:var(--amber);box-shadow:0 0 0 2px var(--accent-soft)}
+.c8-in::placeholder{color:var(--faint)}
+
+/* ---- модели: сводка, шапка, строки ---- */
+#provDetail .c75-mbody{flex:1 1 auto;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border-2) transparent}
+#provDetail .c75-mstat{display:flex;align-items:center;gap:14px;min-width:0;overflow:hidden;padding:5px 2px 6px;border-bottom:1px solid color-mix(in srgb,var(--rule) 55%,transparent);font:9.5px var(--mono);color:var(--faint);white-space:nowrap}
+#provDetail .c75-mstat span{display:inline-flex;align-items:baseline;gap:5px;min-width:0;flex:none}
+#provDetail .c75-mstat i{font:8.5px var(--mono);font-style:normal;letter-spacing:.8px;text-transform:uppercase;color:var(--faint)}
+#provDetail .c75-mstat b{font-weight:400;color:var(--ink2);font-variant-numeric:tabular-nums}
+#provDetail .c75-mstat em{font-style:normal;color:var(--accent-2)}
+#provDetail .c75-mhead,#provDetail .c75-mr{display:grid;grid-template-columns:14px minmax(0,1fr) 100px 40px 62px 22px 56px;gap:8px;align-items:center;min-width:0}
+#provDetail .c75-mhead{position:sticky;top:0;z-index:2;background:var(--paper);padding:4px 0 4px 6px;border-bottom:1px solid var(--rule);font:8px var(--mono);letter-spacing:1.3px;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+#provDetail .c75-mhead span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+#provDetail .c75-mr{position:relative;min-height:27px;padding:3px 0 3px 6px;border-bottom:1px solid color-mix(in srgb,var(--rule) 55%,transparent);font:10px var(--mono);font-variant-numeric:tabular-nums;min-width:0}
+#provDetail .c75-mr:hover{background:var(--hover)}
+#provDetail .c75-mr::before{content:"";position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:1px;background:transparent}
+#provDetail .c75-mr.armed::before{background:var(--accent-2)}
+#provDetail .c75-mr.open{background:var(--panel-2)}
+#provDetail .c75-mr.off .c75-mn b{color:var(--faint);text-decoration:line-through}
+#provDetail .c75-mr.hid{opacity:.55}
+#provDetail .c75-mr.hid.off{opacity:.45}
+#provDetail .c75-mn{display:flex;align-items:center;gap:6px;min-width:0;color:var(--ink2);overflow:hidden}
+#provDetail .c75-mn .fam{flex:none;width:8px;text-align:center;font:7px/1 var(--mono);font-style:normal;text-transform:uppercase;color:var(--faint);letter-spacing:0}
+#provDetail .c75-mn b{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#provDetail .c75-mn .tag{flex:none;font:8px var(--mono);font-style:normal;letter-spacing:.6px;text-transform:uppercase;color:var(--faint);border:1px solid var(--rule);border-radius:3px;padding:1px 3px}
+#provDetail .c75-mc{display:grid;grid-template-columns:auto 40px 24px;gap:5px;align-items:center;min-width:0}
+#provDetail .c75-mc b{font:9.5px var(--mono);font-weight:400;color:var(--ink2);text-align:right}
+#provDetail .c75-mc em{font:8px var(--mono);font-style:normal;color:var(--faint);text-align:right;white-space:nowrap}
+#provDetail .c75-mc .bar{height:2px;border-radius:1px;background:var(--cell0);overflow:hidden}
+#provDetail .c75-mc .bar span{display:block;height:100%;background:var(--ink2)}
+#provDetail .c75-me{text-align:right;color:var(--faint);font:9.5px var(--mono)}
+#provDetail .c75-me b{font-weight:400;color:var(--accent-2)}
+#provDetail .c75-mlv{justify-self:start;min-width:0;overflow:hidden;font:8.5px var(--mono);color:var(--faint);letter-spacing:.2px;white-space:nowrap}
+#provDetail .c75-mlv b{font-weight:400;color:var(--ink2)}
+#provDetail .c75-play{width:20px;height:20px;padding:0;border:1px solid transparent;border-radius:4px;background:none;color:var(--ink2);font:7px/1 var(--mono);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:color var(--tr),border-color var(--tr),background var(--tr)}
+#provDetail .c75-play:hover{color:var(--ink);border-color:var(--rule);background:var(--panel-2)}
+#provDetail .c75-play.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+#provDetail .c75-play:focus-visible{outline:1px solid var(--accent-2);outline-offset:1px}
+#provDetail .c75-play svg{width:6px;height:8px;flex:none;opacity:.8}
+#provDetail .c75-play:hover svg{opacity:1}
+
+/* reasoning: сегменты в раскрытой строке */
+#provDetail .c75-seg{display:inline-flex;width:max-content;max-width:100%;border:1px solid var(--rule);border-radius:4px;overflow:hidden;margin-top:2px}
+#provDetail .c75-seg button{height:19px;padding:0 7px;border:0;border-left:1px solid var(--rule);background:none;color:var(--faint);font:8.5px var(--mono);cursor:pointer;white-space:nowrap}
+#provDetail .c75-seg button:first-child{border-left:0}
+#provDetail .c75-seg button:hover{color:var(--ink2);background:var(--panel-3)}
+#provDetail .c75-seg button.on{color:var(--accent-ink);background:var(--accent-dim)}
+#provDetail .c75-seg button:focus-visible{outline:1px solid var(--accent-2);outline-offset:-1px}
+
+/* ---- тест-слой: нижняя панель экрана «модели» ---- */
+#provDetail .c75-test{position:relative;flex:none;min-width:0;border-top:1px solid var(--border-2);background:var(--panel);padding:0 0 0 6px}
+#provDetail .c75-th{display:flex;align-items:center;gap:8px;min-width:0;height:30px}
+#provDetail .c75-tm{display:inline-flex;align-items:center;gap:5px;max-width:280px;min-width:0;height:22px;padding:0 6px;border:1px solid var(--rule);border-radius:5px;background:var(--panel-2);color:var(--ink2);font:9.5px var(--mono);cursor:pointer}
+#provDetail .c75-tm:hover{border-color:var(--ink2);color:var(--ink)}
+#provDetail .c75-tm b{font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#provDetail .c75-tm span{flex:none;color:var(--faint);font-size:8px}
+#provDetail .c75-tm .fam{flex:none;width:8px;text-align:center;font:7px/1 var(--mono);font-style:normal;text-transform:uppercase;color:var(--faint);letter-spacing:0}
+#provDetail .c75-tstate{display:inline-flex;align-items:center;gap:5px;min-width:0;font:9px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#provDetail .c75-tstate i{width:5px;height:5px;border-radius:50%;background:var(--faint);flex:none}
+#provDetail .c75-tstate i.demo,#provDetail .c75-tstate i.err{background:var(--accent-2)}
+#provDetail .c75-tstate i.ok{background:var(--ink)}
+#provDetail .c75-tstate.busy i{background:var(--accent-2);animation:c75-pulse 900ms infinite}
+@keyframes c75-pulse{50%{opacity:.2}}
+#provDetail .c75-texp{flex:none;width:20px;height:20px;padding:0;border:1px solid var(--rule);border-radius:4px;background:none;color:var(--faint);font:9px/1 var(--mono);cursor:pointer}
+#provDetail .c75-texp:hover{color:var(--ink);border-color:var(--ink2)}
+#provDetail .c75-tbody{display:flex;flex-direction:column;gap:3px;padding:0 0 7px;min-width:0}
+#provDetail .c75-tbody[hidden]{display:none}
+#provDetail .c75-compose{display:flex;align-items:flex-end;gap:6px;min-width:0}
+#provDetail .c75-ta{flex:1 1 auto;min-width:0;min-height:24px;max-height:64px;padding:5px 7px;border:1px solid var(--rule);border-radius:6px;background:var(--panel-2);color:var(--ink);font:10.5px/1.35 var(--mono);resize:none;outline:none;overflow-y:auto}
+#provDetail .c75-ta:focus{border-color:var(--accent-2);box-shadow:0 0 0 2px var(--accent-soft)}
+#provDetail .c75-ta::placeholder{color:var(--faint)}
+#provDetail .c75-count{flex:none;min-width:28px;padding-bottom:6px;text-align:right;font:8.5px var(--mono);color:var(--faint);font-variant-numeric:tabular-nums}
+#provDetail .c75-go{flex:none;height:26px;padding:0 12px;border:0;border-radius:6px;background:var(--accent-grad);color:var(--accent-ink);font:9.5px var(--mono);font-weight:600;letter-spacing:.4px;cursor:pointer}
+#provDetail .c75-go:hover{filter:brightness(1.12)}
+#provDetail .c75-go:disabled{background:var(--panel-3);color:var(--faint);cursor:default;filter:none}
+#provDetail .c75-res{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 7px;min-width:0;padding-top:4px;border-top:1px solid color-mix(in srgb,var(--rule) 55%,transparent);font:9.5px/1.4 var(--mono);color:var(--ink2)}
+#provDetail .c75-rh{flex:none;font:8px var(--mono);letter-spacing:1px;text-transform:uppercase;padding:1px 4px;border:1px solid var(--rule);border-radius:3px;color:var(--faint);white-space:nowrap}
+#provDetail .c75-rh.demo,#provDetail .c75-rh.err{color:var(--accent-2);border-color:var(--accent-2)}
+#provDetail .c75-rh.ok{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+#provDetail .c75-rm{flex:none;max-width:220px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#provDetail .c75-rd{flex:none;color:var(--faint);font-variant-numeric:tabular-nums}
+#provDetail .c75-rb{flex:1 0 100%;min-width:0;max-height:34px;overflow:auto;overflow-wrap:anywhere;color:var(--ink2)}
+#provDetail .c75-rb code{display:block;font:9.5px/1.45 var(--mono);color:var(--ink);background:none;padding:0}
+#provDetail .c75-rb .c75-meta{display:block;color:var(--faint)}
+
+/* история теста — выпадающая полка над слоем */
+#provDetail .c75-hist{position:absolute;left:6px;right:0;bottom:100%;z-index:20;display:flex;flex-direction:column;min-width:0;max-height:min(240px,46vh);border:1px solid var(--border-2);border-bottom:0;border-radius:8px 8px 0 0;background:var(--card);box-shadow:var(--shadow)}
+#provDetail .c75-hh{display:flex;align-items:center;gap:10px;min-width:0;padding:5px 8px;border-bottom:1px solid var(--rule);font:8px var(--mono);letter-spacing:1px;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden}
+#provDetail .c75-hh .sp{flex:1 1 auto;min-width:0}
+#provDetail .c75-hr{display:grid;grid-template-columns:58px minmax(90px,170px) 34px 48px minmax(0,1fr);gap:8px;align-items:baseline;min-width:0;padding:4px 8px;border:0;border-bottom:1px solid color-mix(in srgb,var(--rule) 45%,transparent);background:none;color:var(--ink2);font:9.5px var(--mono);text-align:left;cursor:pointer}
+#provDetail .c75-hr:hover{background:var(--panel-3)}
+#provDetail .c75-hr .t{color:var(--faint);overflow:hidden}
+#provDetail .c75-hr .m{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#provDetail .c75-hr .s{font-size:8px;letter-spacing:.5px;text-transform:uppercase;color:var(--faint)}
+#provDetail .c75-hr .s.ok{color:var(--ink)}
+#provDetail .c75-hr .s.err,#provDetail .c75-hr .s.demo{color:var(--accent-2)}
+#provDetail .c75-hr .d{color:var(--faint);text-align:right}
+#provDetail .c75-hr .p{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
+#provDetail .c75-hnone{padding:8px;font:9.5px var(--mono);color:var(--faint)}
+
+/* выбор модели — полка над слоем */
+#provDetail .c75-pick{position:absolute;left:6px;bottom:100%;z-index:22;width:min(420px,calc(100% - 10px));border:1px solid var(--border-2);border-radius:8px;background:var(--card);box-shadow:var(--shadow);overflow:hidden}
+#provDetail .c75-ph{display:flex;align-items:center;gap:6px;padding:5px 6px;border-bottom:1px solid var(--rule)}
+#provDetail .c75-ph .c75-in{padding:0 6px}
+#provDetail .c75-ph span{flex:none;min-width:24px;text-align:right;font:8.5px var(--mono);color:var(--faint);font-variant-numeric:tabular-nums}
+#provDetail .c75-pl{display:flex;flex-direction:column;max-height:min(220px,42vh);overflow-y:auto}
+#provDetail .c75-po{display:flex;align-items:center;gap:7px;min-width:0;padding:4px 8px;border:0;border-bottom:1px solid color-mix(in srgb,var(--rule) 40%,transparent);background:none;color:var(--ink2);font:9.5px var(--mono);text-align:left;cursor:pointer}
+#provDetail .c75-po:hover,#provDetail .c75-po.cur{background:var(--panel-3);color:var(--ink)}
+#provDetail .c75-po.sel{box-shadow:inset 2px 0 0 var(--accent-2)}
+#provDetail .c75-po .fam{flex:none;width:8px;text-align:center;font:7px/1 var(--mono);font-style:normal;text-transform:uppercase;color:var(--faint);letter-spacing:0}
+#provDetail .c75-po b{font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+/* ================= контролы: дропдаун и степпер ================= */
+/* закрытая плашка 10px + шеврон; меню — своё, fixed от обрезки скроллом */
+.c8-dd{position:relative;display:inline-flex;align-items:center;gap:6px;height:26px;min-width:0;padding:0 9px;border:1px solid var(--rule);
+  border-radius:10px;background:var(--panel-2);color:var(--ink2);font:10px var(--mono);cursor:pointer;outline:none;
+  transition:border-color var(--tr),background var(--tr),color var(--tr)}
+.c8-dd:hover{border-color:var(--ink2);color:var(--ink)}
+.c8-dd:focus-visible{outline:1px solid var(--amber);outline-offset:1px;border-color:var(--amber);box-shadow:none}
+.c8-dd.open{border-color:var(--amber);background:var(--panel-3);color:var(--ink)}
+.c8-dd.is-dis{opacity:.5;pointer-events:none}
+.c8-dd-v{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c8-dd-c{width:9px;height:6px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform var(--tr)}
+.c8-dd.open .c8-dd-c{transform:rotate(180deg)}
+.c8-dd-m{position:fixed;z-index:70;display:none;flex-direction:column;gap:1px;min-width:96px;max-height:240px;overflow:auto;padding:4px;
+  border:1px solid var(--border-2);border-radius:10px;background:var(--card);box-shadow:var(--shadow)}
+.c8-dd.open .c8-dd-m{display:flex}
+.c8-dd-m[hidden]{display:none}
+.c8-dd-o{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border:0;border-radius:6px;background:none;color:var(--ink2);
+  font:10.5px var(--mono);text-align:left;white-space:nowrap;cursor:pointer}
+.c8-dd-o:hover,.c8-dd-o.cur{background:var(--panel-3);color:var(--ink)}
+.c8-dd-o.sel{color:var(--ink);box-shadow:inset 2px 0 0 var(--amber)}
+.c8-dd-o.sel::after{content:"✓";margin-left:auto;font:9px var(--mono);color:var(--amber)}
+.c8-dd-o:focus-visible{outline:1px solid var(--amber);outline-offset:-1px}
+
+/* число со степперами «− / +» — как в настройках ядра */
+.c8-step{display:inline-flex;align-items:stretch;height:26px;min-width:0;border:1px solid var(--rule);border-radius:8px;background:var(--panel-2);overflow:hidden}
+.c8-step:focus-within{border-color:var(--amber);box-shadow:0 0 0 2px var(--accent-soft)}
+.c8-step .c8-in{flex:1 1 auto;min-width:0;height:auto;padding:0 2px;border:0;border-radius:0;background:none;text-align:center;
+  font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.c8-step .c8-in:focus{box-shadow:none}
+.c8-step .c8-in::-webkit-outer-spin-button,.c8-step .c8-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.c8-step-b{flex:none;width:24px;padding:0;border:0;background:none;color:var(--faint);font:13px/1 var(--mono);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;transition:background var(--tr),color var(--tr)}
+.c8-step-b:hover{color:var(--ink);background:var(--panel-3)}
+.c8-step-b:active{background:var(--accent-dim);color:var(--accent-ink)}
+.c8-step-b:focus-visible{outline:1px solid var(--amber);outline-offset:-2px}
+
+/* ================= связь: аккордеон вместо простыни ================= */
+.c8-conn{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start;min-width:0}
+.c8-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.c8-acc{min-width:0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);margin-top:-1px}
+.c8-acc-h{display:flex;align-items:center;gap:8px;min-width:0;height:32px;cursor:pointer;list-style:none;color:var(--ink2)}
+.c8-acc-h::-webkit-details-marker{display:none}
+.c8-acc-h .t{position:relative;padding-left:9px;font:9.5px var(--mono);letter-spacing:1.9px;text-transform:uppercase;color:var(--ink2);white-space:nowrap}
+.c8-acc-h .t::before{content:"";position:absolute;left:0;top:1px;width:2px;height:8px;background:var(--amber)}
+.c8-acc-h .h{font:9.5px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.c8-acc-h .sp{flex:1 1 auto;min-width:0}
+.c8-acc-h .v{font:9.5px var(--mono);color:var(--faint);white-space:nowrap;font-variant-numeric:tabular-nums}
+.c8-acc-h:hover .v{color:var(--ink2)}
+.c8-acc-h:focus-visible{outline:1px solid var(--amber);outline-offset:-2px}
+.c8-acc-c{width:7px;height:7px;flex:none;border-right:1px solid var(--ink2);border-bottom:1px solid var(--ink2);
+  transform:rotate(45deg);margin:-3px 2px 0;transition:transform var(--tr)}
+.c8-acc[open] .c8-acc-c{transform:rotate(-135deg);margin-top:3px}
+.c8-acc-b{padding:2px 0 12px;min-width:0}
+.c8-acc-act{display:flex;align-items:center;gap:7px;min-width:0;margin-top:8px;padding-top:7px;border-top:1px solid color-mix(in srgb,var(--rule) 55%,transparent)}
+.c8-acc-act .sp{flex:1 1 auto;min-width:0}
+.c8-savebar{display:flex;align-items:center;gap:8px;min-width:0;margin-top:14px;padding-top:9px;border-top:1px solid var(--rule)}
+.c8-savebar .sp{flex:1 1 auto;min-width:0}
+
+.c8-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 10px;min-width:0}
+.c8-f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.c8-f.wide{grid-column:1/-1}
+.c8-f .lbl{font:8.5px var(--mono);letter-spacing:1.3px;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c8-form .c8-dd,.c8-form .c8-step{width:100%}
+.c8-f.calc .c8-in{background:var(--canvas);color:var(--ink2);text-align:center;font-variant-numeric:tabular-nums}
+.c8-duo2{display:flex;gap:5px;min-width:0}
+.c8-duo2 .c8-step{flex:1 1 0;min-width:0}
+.c8-duo2 .c8-step .c8-in{text-align:center}
+.c8-chk{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:baseline;min-width:0;font:10.5px var(--mono);color:var(--ink2)}
+.c8-chk .k{color:var(--faint);white-space:nowrap}
+.c8-chk .v{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.c8-chk .v.on{color:var(--ink)}
+.c8-chk .v.bad{color:var(--accent-2)}
+.c8-ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px;font:10px/1.5 var(--sans);color:var(--ink2)}
+.c8-ul li{position:relative;padding-left:10px}
+.c8-ul li::before{content:"—";position:absolute;left:0;color:var(--rule)}
+.c8-ul b{color:var(--ink);font-weight:600}
+
+/* ================= узкое окно ================= */
+@media (max-width:1040px){
+  .c8-duo,.c8-conn{grid-template-columns:minmax(0,1fr)}
+  .c8-tape{grid-template-columns:minmax(0,1fr)}
+  #provDetail .c75-khead,#provDetail .c75-kr{grid-template-columns:18px 12px minmax(0,1fr) 150px 92px 58px;gap:6px}
+  #provDetail .c75-mhead,#provDetail .c75-mr{grid-template-columns:12px minmax(0,1fr) 78px 30px 52px 20px 50px;gap:6px}
+  #provDetail .c75-mc{grid-template-columns:auto minmax(10px,1fr)}
+  #provDetail .c75-mc em{display:none}
+  #provDetail .c75-kd,#provDetail .c75-md{padding-left:44px}
+}
+@media (max-width:860px){
+  .c8{padding:8px 14px 0}
+  .c8-nm{font-size:22px}
+  .c8-cell{padding:6px 8px 7px}
+  .c8-cell .v{font-size:18px}
+  .c8-qts{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .c8-qt{padding:6px 7px 7px}
+  .c8-qt .v{font-size:15px}
+  .c8-form{grid-template-columns:minmax(0,1fr)}
+  .c8-mk-r{grid-template-columns:74px minmax(0,1fr) auto;gap:8px}
+  #provDetail .c75-kbar,#provDetail .c75-mbar{height:auto;min-height:34px;flex-wrap:wrap;padding:4px 0;row-gap:4px}
+  #provDetail .c75-find{flex:1 1 130px}
+  #provDetail .c75-chips{order:5;flex:1 1 100%;overflow-x:auto;border-radius:5px}
+  #provDetail .c75-chip{flex:1 1 auto;justify-content:center}
+  #provDetail .c75-khead,#provDetail .c75-kr{grid-template-columns:16px 12px minmax(0,1fr) 92px 78px 46px;gap:5px}
+  #provDetail .c75-kr .c75-st em,#provDetail .c75-khead span:nth-child(5) em{display:none}
+  #provDetail .c75-st{font-size:9px}
+  #provDetail .c75-mhead,#provDetail .c75-mr{grid-template-columns:12px minmax(0,1fr) 60px 26px 40px 18px 46px;gap:5px}
+  #provDetail .c75-mc em{display:none}
+  #provDetail .c75-kd,#provDetail .c75-md{padding-left:38px}
+  #provDetail .c75-dg{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #provDetail .c75-th{flex-wrap:wrap;height:auto;padding:4px 0;row-gap:3px}
+  #provDetail .c75-tstate{order:6;flex:1 1 100%;padding-bottom:2px}
+  #provDetail .c75-tm{max-width:220px}
+  #provDetail .c75-hr{grid-template-columns:48px minmax(70px,130px) 30px 42px minmax(0,1fr);gap:6px}
+  #provDetail .c75-add{flex-wrap:wrap}
+}
+@media (max-width:640px){
+  .c8-rail{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .c8-cell:nth-child(4),.c8-cell:nth-child(5){border-top:1px solid var(--rule);margin-top:1px}
+  .c8-cell:nth-child(4){padding-left:0;border-left:0}
+  .c8-nav button{padding:0 8px;letter-spacing:1.2px}
+  .c8-mk-r .s{display:none}
+  #provDetail .c75-khead,#provDetail .c75-kr{grid-template-columns:14px 10px minmax(0,1fr) 78px 44px;gap:4px}
+  #provDetail .c75-khead span:nth-child(5),#provDetail .c75-kr .c75-st{display:none}
+  #provDetail .c75-mhead,#provDetail .c75-mr{grid-template-columns:10px minmax(0,1fr) 46px 18px 44px;gap:4px}
+  #provDetail .c75-mhead span:nth-child(4),#provDetail .c75-mr .c75-me,
+  #provDetail .c75-mhead span:nth-child(5),#provDetail .c75-mr .c75-mlv{display:none}
+  #provDetail .c75-kd,#provDetail .c75-md{padding-left:24px}
+  #provDetail .c75-dg{grid-template-columns:minmax(0,1fr)}
+}
+
+/* короткое окно: списку — максимум места, тест-слой остаётся видимым */
+@media (max-height:660px){
+  #provDetail .c75-mstat{display:none}
+  #provDetail .c75-th{height:27px}
+  #provDetail .c75-hr{padding:3px 8px}
+}
+
+/* ================= связь: аккордеон в стиле настроек (порт c14) ================= */
+.c8-conn.x14{--c8-rd:10px;--c8-rl:12px}
+.c8-conn{display:flex;flex-direction:column;min-width:0}
+.x14-ac{min-width:0;border-bottom:1px solid var(--rule)}
+.x14-ac:first-child{border-top:1px solid var(--rule)}
+.x14-ach{display:flex;align-items:center;gap:9px;min-width:0;min-height:38px}
+.x14-acht{display:flex;align-items:center;gap:9px;flex:1 1 auto;min-width:0;height:36px;padding:0;border:0;background:none;cursor:pointer;text-align:left;color:inherit;border-radius:4px}
+.x14-acht .i{flex:none;font:9px var(--mono);letter-spacing:1px;color:var(--faint);border:1px solid var(--rule);border-radius:6px;padding:2px 5px 1px}
+.x14-acht .t{flex:none;font:600 12px var(--sans);letter-spacing:.2px;color:var(--ink);white-space:nowrap}
+.x14-acht .h{font:9.5px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.x14-acht .sp{flex:1 1 auto;min-width:6px}
+.x14-acht .sum{flex:none;font:9.5px var(--mono);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:44%;font-variant-numeric:tabular-nums}
+.x14-ach .chev{position:relative;flex:none;width:22px;height:22px;margin-left:2px;cursor:pointer}
+.x14-ach .chev::before{content:"";position:absolute;left:7px;top:6px;width:7px;height:7px;border-right:1.5px solid var(--ink2);border-bottom:1.5px solid var(--ink2);transform:rotate(45deg);transition:transform var(--tr)}
+.x14-ac.on .x14-ach .chev::before{transform:rotate(-135deg);top:9px}
+.x14-acht:hover .t{color:var(--amber)}
+.x14-acht:focus-visible{outline:1px solid var(--amber);outline-offset:-2px}
+.x14-acb{display:none;padding:3px 0 15px;min-width:0}
+.x14-ac.on .x14-acb{display:block}
+.c8-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;min-width:0}
+.c8-f{display:flex;flex-direction:column;gap:2px;min-width:0}
+.c8-f.wide{grid-column:1/-1}
+.c8-f .lbl{font:8.5px var(--mono);letter-spacing:1.3px;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c8-f .c8-in{height:var(--c8-h)}
+.x14-duo2{display:flex;gap:5px;align-items:center;min-width:0}
+.x14-duo2 .x14-stp{flex:1 1 0;min-width:0}
+.c8-f .x14-stp{max-width:200px}
+.x14-x{flex:none;font:11px var(--mono);font-style:normal;color:var(--faint)}
+.x14-calc{display:flex;align-items:baseline;gap:9px;height:var(--c8-h);padding:0 9px;border-radius:var(--c8-r);border:1px dashed var(--rule);background:var(--canvas);min-width:0;max-width:200px}
+.x14-calc b{font:600 14px var(--sans);color:var(--ink);font-variant-numeric:tabular-nums}
+.x14-calc i{font:9.5px var(--mono);font-style:normal;color:var(--faint);white-space:nowrap}
+.x14-foot{display:flex;align-items:center;gap:7px;min-width:0;margin-top:12px;padding-top:9px;border-top:1px solid var(--rule)}
+.x14-foot .sp{flex:1 1 auto;min-width:0}
+.x14-chk{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:baseline;min-width:0;font:10.5px var(--mono);color:var(--ink2)}
+.x14-chk .k{color:var(--faint);white-space:nowrap}
+.x14-chk .v{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.x14-chk .v.on{color:var(--ink)}
+.x14-chk .v.bad{color:var(--accent-2)}
+.x14-ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px;font:10px/1.5 var(--sans);color:var(--ink2)}
+.x14-ul li{position:relative;padding-left:10px}
+.x14-ul li::before{content:"—";position:absolute;left:0;color:var(--rule)}
+.x14-ul b{color:var(--ink);font-weight:600}
+
+/* ================= дропдаун: плашка r10 + меню r12 ================= */
+.x14-dd{position:relative;min-width:0}
+.x14-ddb{display:flex;align-items:center;gap:6px;width:100%;height:var(--c8-h);padding:0 9px;border-radius:var(--c8-rd);border:1px solid var(--rule);background:var(--panel-2);color:var(--ink);font:11px var(--sans);cursor:pointer;text-align:left;outline:none;transition:border-color var(--tr),background var(--tr),box-shadow var(--tr)}
+.x14-ddb:hover{border-color:var(--ink2)}
+.x14-ddb:focus-visible{border-color:var(--amber);box-shadow:0 0 0 2px var(--accent-soft)}
+.x14-ddb[disabled]{opacity:.55;cursor:default}
+.x14-ddb .v{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.x14-ddb .ch{flex:none;width:6px;height:6px;margin-bottom:3px;border-right:1.5px solid var(--ink2);border-bottom:1.5px solid var(--ink2);transform:rotate(45deg);transition:transform var(--tr)}
+.x14-dd.on .x14-ddb{border-color:var(--amber)}
+.x14-dd.on .x14-ddb .ch{transform:rotate(-135deg);margin-bottom:-3px}
+.x14-ddm{position:absolute;left:0;top:calc(100% + 4px);z-index:40;min-width:100%;width:max-content;max-width:260px;max-height:250px;overflow:auto;
+  padding:4px;border:1px solid var(--rule);border-radius:var(--c8-rl);background:var(--card);box-shadow:0 14px 34px rgba(0,0,0,.45)}
+.x14-ddm[hidden]{display:none}
+.x14-dd.up .x14-ddm{top:auto;bottom:calc(100% + 4px)}
+.x14-ddo{display:block;width:100%;padding:6px 9px;border:0;border-radius:var(--c8-r);background:transparent;color:var(--ink2);font:11px var(--mono);text-align:left;cursor:pointer;white-space:nowrap}
+.x14-ddo:hover,.x14-ddo.act{background:var(--panel-3);color:var(--ink)}
+.x14-ddo.on{color:var(--ink);background:var(--panel-3);box-shadow:inset 2px 0 0 var(--amber)}
+.x14-ddo:focus-visible{outline:1px solid var(--amber);outline-offset:-1px}
+.x14-dd.mini{flex:none;width:78px}
+.x14-dd.mini .x14-ddb{height:22px;padding:0 7px;border-radius:var(--c8-r);font:9.5px var(--mono);gap:4px}
+.x14-dd.mini .x14-ddb .ch{width:5px;height:5px;border-width:1.2px}
+.x14-dd.mini .x14-ddm{min-width:92px;padding:3px}
+.x14-dd.mini .x14-ddo{padding:5px 8px;font-size:10px}
+
+/* ================= степпер «− значение +» ================= */
+.x14-stp{display:flex;align-items:stretch;width:100%;height:var(--c8-h);min-width:0;border:1px solid var(--rule);border-radius:var(--c8-rd);background:var(--panel-2);overflow:hidden;transition:border-color var(--tr),box-shadow var(--tr)}
+.x14-stp:hover{border-color:var(--ink2)}
+.x14-stp:focus-within{border-color:var(--amber);box-shadow:0 0 0 2px var(--accent-soft)}
+.x14-stb{flex:none;width:24px;padding:0;border:0;background:transparent;color:var(--ink2);font:14px/1 var(--sans);cursor:pointer}
+.x14-stb:hover{background:var(--panel-3);color:var(--ink)}
+.x14-stb:focus-visible{outline:1px solid var(--amber);outline-offset:-2px}
+.x14-stw{position:relative;display:flex;align-items:center;flex:1 1 auto;min-width:0;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
+.x14-sti{flex:1 1 auto;width:100%;min-width:0;height:26px;padding:0 4px;border:0;background:transparent;color:var(--ink);font:500 13px var(--sans);font-variant-numeric:tabular-nums;text-align:center;outline:none;appearance:textfield;-moz-appearance:textfield}
+.x14-sti::-webkit-outer-spin-button,.x14-sti::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.x14-sti:focus-visible{outline:none}
+.x14-stu{position:absolute;right:6px;top:50%;transform:translateY(-50%);font:10px var(--sans);font-style:normal;color:var(--faint);pointer-events:none}
+
+
+
+/* порт c14: узкое окно */
+@media (max-width:860px){
+  .c8-conn.x14 .x14-acht .h{display:none}
+  .c8-conn.x14 .x14-acht .sum{max-width:38%}
+}
+@media (max-width:700px){
+  .c8-conn.x14 .c8-form{grid-template-columns:minmax(0,1fr)}
+}
+
+/* порт c14: адаптация по фактической ширине карточки, а не окна */
+#provDetail .c8{container-type:inline-size}
+@container (max-width:780px){
+  .c8-conn.x14 .x14-acht .h{display:none}
+  .c8-conn.x14 .x14-acht .sum{max-width:42%}
+}
+@container (max-width:640px){
+  .c8-conn.x14 .c8-form{grid-template-columns:minmax(0,1fr)}
+  .c8-conn.x14 .c8-f .c8-stp{max-width:none}
+}
+
+/* порт c14: секции на всю ширину карточки (c75-правило .c8-conn{align-items:start} не даёт flex-детям растянуться) */
+.c8-conn.x14{display:flex;flex-direction:column;align-items:stretch;gap:0}
+.c8-conn.x14 > .x14-ac{width:100%}

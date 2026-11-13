@@ -166,7 +166,7 @@ async function comboTest(id, btn) {
   const n = c && c.steps ? c.steps.length : 0;
   if (DEMO) { toast("Комбо «" + nm + "» (демо): живой вызов выключен, показан пример", "ok"); return; }
   if (btn && btn.disabled) return;
-  if (!confirm("Живой тест «" + nm + "»: 1 ping (~16 токенов) реальными ключами шагов по порядку. Продолжить?")) return;
+  if (!confirm(I18N.t("Живой тест «" + nm + "»: 1 ping (~16 токенов) реальными ключами шагов по порядку. Продолжить?"))) return;
   if (btn) { btn.disabled = true; btn.textContent = "▶ Тест…"; }
   const w = modal("Тест комбо", '<div class="state"><div class="big" aria-hidden="true">↻</div><div class="title">Тестируем «' + esc(nm) + '»…</div><div class="hint">живой вызов ping max_tokens=16 реальными ключами · живых шагов: ' + n + ' · таймаут 90с · пишется в журнал</div></div>');
   try {
@@ -345,7 +345,7 @@ function wire() {
     // поиск живёт на обеих ветках: request — серверный (LogsByQuery), proxies — клиентский по окну 200 (renderPlogs); query при смене ветки не сбрасываем
     const lk = $("#log-search"); if (lk) { lk.disabled = false; lk.classList.remove("muted"); lk.placeholder = S.logKind === "proxies" ? "прокси, действие, ошибка…" : "модель, провайдер, rid…"; lk.title = S.logKind === "proxies" ? "Фильтр по загруженным событиям egress (окно 200): прокси, действие, ошибка" : "Поиск по модели, провайдеру, rid; ошибка, статус и HTTP-код — только от 3 символов"; }
     // смена источника журнала — новая выборка: сброс фильтра уровня на все чипы
-    S.logLv = { info: true, warn: true, error: true };
+    S.logLv = { info: true, retry: true, warn: true, error: true };
     $$("#log-lvchips .chip").forEach(x => x.classList.add("on"));
     loadLogs({ force: true });
   }));

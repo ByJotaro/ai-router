@@ -12,16 +12,19 @@ var W01L = { rows: [], rib: [], focus: -1, hover: -1, pausedUntil: 0, slowMs: 90
 /* ---------- источник данных ветки ---------- */
 function w01LogKind() { return S.logKind === "proxies" ? "proxies" : "request"; }
 
-/* Уровень: ok → info, медленный/3xx → warn, ошибка/4xx+ → error. */
+/* Уровень: ошибка → error, ответ после ретрая на другой egress → retry,
+   медленный/3xx → warn, обычный → info. Ретрай важнее медленности: строка
+   не врёт «медленно», она честно говорит «сюда пришлось идти дважды». */
 function w01LogLevel(l) {
   var st = String(l.status == null ? "" : l.status).toLowerCase();
   var http = +l.http_status || 0;
   if ((st && st !== "ok") || http >= 400) return "error";
+  if (+l.attempts > 0) return "retry";
   if (http >= 300 || (+l.duration_ms || 0) >= W01L.slowMs) return "warn";
   return "info";
 }
 function w01ProxyLevel(l) { return l.ok ? "info" : "error"; }
-function w01LogLvOn(lv) { var m = S.logLv || { info: true, warn: true, error: true }; return m[lv] !== false; }
+function w01LogLvOn(lv) { var m = S.logLv || { info: true, retry: true, warn: true, error: true }; return m[lv] !== false; }
 
 /* Порог «медленного» — p90 окна, но не ниже 0.7 с: строка не врёт про «медленно». */
 function w01LogSlow(rows) {
@@ -71,16 +74,16 @@ function w01LogRibbon(host, view) {
   var buckets = W01.clamp(Math.round(iw / 16), 12, 64);
   W01L.buckets = buckets;
   var cols = [];
-  for (i = 0; i < buckets; i++) cols.push({ ok: 0, warn: 0, err: 0, t: buckets > 1 ? t0 + (t1 - t0) * i / buckets : t0 });
+  for (i = 0; i < buckets; i++) cols.push({ ok: 0, retry: 0, warn: 0, err: 0, t: buckets > 1 ? t0 + (t1 - t0) * i / buckets : t0 });
   var span = Math.max(1, t1 - t0);
   for (i = 0; i < view.length; i++) {
     var v = view[i];
     if (!v.t) continue;
     var bi = buckets > 1 ? Math.floor((v.t - t0) / span * buckets) : 0;
     bi = W01.clamp(bi, 0, buckets - 1);
-    if (v.lv === "error") cols[bi].err++; else if (v.lv === "warn") cols[bi].warn++; else cols[bi].ok++;
+    if (v.lv === "error") cols[bi].err++; else if (v.lv === "warn") cols[bi].warn++; else if (v.lv === "retry") cols[bi].retry++; else cols[bi].ok++;
   }
-  var totals = cols.map(function (c) { return c.ok + c.warn + c.err; });
+  var totals = cols.map(function (c) { return c.ok + c.retry + c.warn + c.err; });
   var mx = W01.niceMax(Math.max.apply(null, totals.concat([1])));
   var slot = iw / buckets;
   var y0 = T + ih;
@@ -97,9 +100,10 @@ function w01LogRibbon(host, view) {
   for (i = 0; i < buckets; i++) {
     var c = cols[i], x = P + slot * i + slot * 0.16, bw = Math.max(1.6, slot * 0.68);
     var yOk = Y(c.ok);
-    var yW = Y(c.ok + c.warn);
-    var yE = Y(c.ok + c.warn + c.err);
-    var minH = (c.ok || c.warn || c.err) ? 2 : 0;
+    var yR = Y(c.ok + c.retry);
+    var yW = Y(c.ok + c.retry + c.warn);
+    var yE = Y(c.ok + c.retry + c.warn + c.err);
+    var minH = (c.ok || c.retry || c.warn || c.err) ? 2 : 0;
     var mk = function (yb, yt, cls) {
       var hh = yb - yt;
       if (hh > 0 && hh < minH) hh = minH;
@@ -107,7 +111,7 @@ function w01LogRibbon(host, view) {
       if (hh <= 0) return "";
       return W01.el("rect", "w01-seg " + cls, { x: W01.f1(x), y: W01.f1(yb - hh), width: W01.f1(bw), height: W01.f1(hh), rx: 1.5 });
     };
-    bars += mk(y0, yOk, "w01-seg-ok") + mk(yOk, yW, "w01-seg-warn") + mk(yW, yE, "w01-seg-err");
+    bars += mk(y0, yOk, "w01-seg-ok") + mk(yOk, yR, "w01-seg-retry") + mk(yR, yW, "w01-seg-warn") + mk(yW, yE, "w01-seg-err");
     env.push({ x: P + slot * i + slot / 2, y: Y(totals[i]) });
   }
   var dots = "";
@@ -139,11 +143,17 @@ function w01LogRibbon(host, view) {
   return html;
 }
 
+/* Единица интервала: короткие «с/мин/ч» в словарь не кладём - одиночная
+   буква «с» как ключ опасна для текстовых узлов; хватает локальной пары. */
+function w01Unit(u) {
+  return I18N.lang === "en" ? ({ "с": "s", "мин": "min", "ч": "h" })[u] || u : u;
+}
+
 function w01BucketSpan(t0, t1, buckets) {
   var d = Math.max(1, (t1 - t0) / Math.max(1, buckets)) / 1000;
-  if (d < 90) return Math.max(1, Math.round(d)) + " с";
-  if (d < 5400) return Math.round(d / 60) + " мин";
-  return (d / 3600).toFixed(1).replace(".", ",") + " ч";
+  if (d < 90) return Math.max(1, Math.round(d)) + " " + w01Unit("с");
+  if (d < 5400) return Math.round(d / 60) + " " + w01Unit("мин");
+  return (d / 3600).toFixed(1).replace(".", ",") + " " + w01Unit("ч");
 }
 
 /* Русская форма числительного: 1 запрос / 2 запроса / 5 запросов. */
@@ -249,12 +259,14 @@ function w01LogRowsHTML(view, kind, host) {
         '<td class="w01-numc">' + (l.ok ? "да" : "нет") + "</td>" +
         '<td class="w01-numc">' + esc(W01.cut(l.error || "", 22) || "—") + "</td></tr>";
     }
-    return '<tr class="w01-row w01-r-' + v.lv + '" data-id="' + W01.attr(l.id) + '" data-kind="request" tabindex="0" title="Открыть запись журнала">' +
+    var lvTxt = v.lv === "error" ? "ошибка" : (v.lv === "retry" ? "ретрай" : (v.lv === "warn" ? "медленно" : "ok"));
+    var lvTitle = v.lv === "retry" ? "Ответ пришёл только после " + nf(+l.attempts || 1) + " отказа(ов) провайдера: счётчик " + W01.ms(l.retry_ms) + " — это их время плюс переезд на другой egress" : "Открыть запись журнала";
+    return '<tr class="w01-row w01-r-' + v.lv + '" data-id="' + W01.attr(l.id) + '" data-kind="request" tabindex="0" title="' + W01.attr(lvTitle) + '">' +
       '<td class="w01-th-t">' + esc(W01.hhmmss(l.ts)) + "</td>" +
-      '<td><span class="w01-lvl w01-lvl-' + v.lv + '">' + (v.lv === "error" ? "ошибка" : (v.lv === "warn" ? "медленно" : "ok")) + "</span></td>" +
+      '<td><span class="w01-lvl w01-lvl-' + v.lv + '">' + lvTxt + "</span></td>" +
       '<td class="w01-mono">' + esc(W01.nn(l.model)) + "</td>" +
       '<td class="w01-mono">' + esc(W01.nn(l.provider)) + "</td>" +
-      '<td class="w01-numc">' + esc(nf(l.duration_ms)) + "</td>" +
+      '<td class="w01-numc">' + esc(W01.ms(l.duration_ms)) + (+l.retry_ms > 0 ? ' <i class="w01-retrycut" title="из них на ретрай: ответ провайдера с ошибкой + переезд на другой egress">/ ' + esc(W01.ms(l.retry_ms)) + "</i>" : "") + "</td>" +
       '<td class="w01-numc">' + esc(W01.toks((+l.prompt || 0) + (+l.completion || 0))) + "</td>" +
       '<td class="w01-numc">' + esc(W01.nn(l.http_status)) + (l.error ? ' <i class="w01-errmark" title="' + W01.attr(l.error) + '">!</i>' : "") + "</td></tr>";
   }).join("");
@@ -308,13 +320,14 @@ function renderLogStats(view, kind) {
   if (note) {
     var lvTxt = [];
     var m = S.logLv || {};
-    if (m.info === false) lvTxt.push("без ok");
-    if (m.warn === false) lvTxt.push("без медленных");
-    if (m.error === false) lvTxt.push("без ошибок");
-    note.textContent = "колонка = интервал " + w01BucketSpan(W01L.t0 || 0, W01L.t1 || 0, W01L.buckets || 1) +
-      " · стек снизу вверх: ok → медленные → ошибки · клик по колонке сужает список" +
-      (lvTxt.length ? " · фильтр уровня: " + lvTxt.join(", ") : "") +
-      (S.logQuery ? " · поиск: «" + S.logQuery + "»" : "");
+    if (m.info === false) lvTxt.push(I18N.t("без ok"));
+    if (m.retry === false) lvTxt.push(I18N.t("без ретраев"));
+    if (m.warn === false) lvTxt.push(I18N.t("без медленных"));
+    if (m.error === false) lvTxt.push(I18N.t("без ошибок"));
+    note.textContent = I18N.t("колонка = интервал {x} · стек снизу вверх: ok → с ретраем → медленные → ошибки · клик по колонке сужает список")
+      .replace("{x}", w01BucketSpan(W01L.t0 || 0, W01L.t1 || 0, W01L.buckets || 1)) +
+      (lvTxt.length ? " · " + I18N.t("фильтр уровня:") + " " + lvTxt.join(", ") : "") +
+      (S.logQuery ? " · " + I18N.t("поиск:") + " «" + S.logQuery + "»" : "");
   }
   var chip = document.getElementById("w01-log-focus");
   if (chip) {
@@ -332,7 +345,7 @@ function w01LogCounts() {
   var kind = w01LogKind();
   var q = String(S.logQuery || "").trim().toLowerCase();
   var src = kind === "proxies" ? (S.plogs || []) : (S.logs || []);
-  var c = { info: 0, warn: 0, error: 0 };
+  var c = { info: 0, retry: 0, warn: 0, error: 0 };
   for (var i = 0; i < src.length; i++) {
     var l = src[i] || {};
     if (!w01LogMatch(l, q)) continue;
@@ -356,13 +369,13 @@ function w01LogKindChrome(kind) {
   }
   var t = document.getElementById("w01-log-kind-t");
   if (t) t.textContent = kind === "proxies" ? "лента egress-событий" : "лента запросов";
-  var cnt = w01LogCounts(), lvs = ["info", "warn", "error"];
+  var cnt = w01LogCounts(), lvs = ["info", "retry", "warn", "error"];
   for (var i = 0; i < lvs.length; i++) {
     var b = document.querySelector('#log-lvchips [data-lvc="' + lvs[i] + '"]');
     if (b) b.textContent = nf(cnt[lvs[i]]);
     var chip = document.querySelector('#log-lvchips .chip[data-lv="' + lvs[i] + '"]');
-    // у egress-ветки warn-записей не бывает: чип не показываем, чтобы не врал нулём
-    if (chip && lvs[i] === "warn") chip.hidden = kind === "proxies";
+    // у egress-ветки warn/retry-записей не бывает: чипы не показываем, чтобы не врали нулём
+    if (chip && (lvs[i] === "warn" || lvs[i] === "retry")) chip.hidden = kind === "proxies";
   }
 }
 
@@ -372,10 +385,11 @@ function w01LogKindChrome(kind) {
 function w01RibbonTip(el, c, i, cx, cy) {
   var slot = (W01L.t1 - W01L.t0) / Math.max(1, W01L.buckets);
   var a = new Date(W01L.t0 + slot * i), z = new Date(W01L.t0 + slot * (i + 1));
-  var tot = c.ok + c.warn + c.err;
+  var tot = c.ok + c.retry + c.warn + c.err;
   W01.tip(el, '<div class="w01-tip-d">' + esc(W01.hhmmss(a)) + "–" + esc(W01.hhmmss(z)) + "</div>" +
     '<div class="w01-tip-t">' + esc(nf(tot)) + " событий</div>" +
     '<div class="w01-tip-r"><span class="w01-tip-k">ok</span><span class="w01-tip-v">' + esc(nf(c.ok)) + "</span></div>" +
+    '<div class="w01-tip-r"><span class="w01-tip-k">с ретраем</span><span class="w01-tip-v">' + esc(nf(c.retry)) + "</span></div>" +
     '<div class="w01-tip-r"><span class="w01-tip-k">медленных</span><span class="w01-tip-v">' + esc(nf(c.warn)) + "</span></div>" +
     '<div class="w01-tip-r"><span class="w01-tip-k">ошибок</span><span class="w01-tip-v">' + esc(nf(c.err)) + "</span></div>" +
     '<div class="w01-tip-b">клик — показать это окно в списке</div>', cx, cy);
@@ -525,7 +539,8 @@ function w01LogModal(id, kind) {
   } else {
     body = row("время", l.ts) + row("статус", l.status) + row("HTTP", l.http_status) + row("модель", l.model) +
       row("запрошена", l.requested_model) + row("провайдер", l.provider) + row("аккаунт", l.account) +
-      row("длительность", nf(l.duration_ms) + " мс") +
+      row("длительность", W01.ms(l.duration_ms)) +
+      (+l.attempts > 0 ? row("ретрай", nf(+l.attempts) + " отказ(ов) провайдера · " + W01.ms(l.retry_ms) + " на повтор и переезд") : "") +
       row("токены", "вход " + nf(l.prompt) + " · выход " + nf(l.completion) + " · кэш-ч " + nf(l.cache_read) + " · кэш-з " + nf(l.cache_write)) +
       row("ошибка", l.error) +
       (l.path ? row("путь", (l.method || "POST") + " " + l.path) : "");

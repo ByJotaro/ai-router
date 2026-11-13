@@ -1,0 +1,7 @@
+# runtime data: never commit a log, a body dump, a state book or a pin table
+node_modules/
+requests*.jsonl
+requests*.jsonl.gz
+dumps/
+v2_*.json
+*.log

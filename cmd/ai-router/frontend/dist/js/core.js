@@ -116,12 +116,15 @@ const provIcon = e => {
   return '<img class="pfi" src="' + src + '" alt="" loading="lazy" data-l="' + letter + '" onerror="this.outerHTML=\'<span class=glyph>\'+this.dataset.l+\'</span>\'">';
 };
 const iN = n => +(n || 0);
-const _nfFmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
+const UI_LANG = (typeof I18N !== "undefined" && I18N.lang) || "ru";
+const _nfFmt = new Intl.NumberFormat((typeof I18N !== "undefined" && I18N.locale) || "ru-RU", { maximumFractionDigits: 0 });
 const nf = n => _nfFmt.format(iN(n));
-const _collRu = new Intl.Collator("ru");
+const _collRu = new Intl.Collator(UI_LANG);
  const compact = n => { n = iN(n); const f = (v, s) => { const t = (n / v).toFixed(1); return (t.endsWith(".0") ? t.slice(0, -2) : t) + s; }; if (n >= 1e9) return f(1e9, "B"); if (n >= 1e6) return f(1e6, "M"); if (n >= 1e3) return f(1e3, "k"); return "" + n; };
 const $c = c => { c = iN(c); const neg = c < 0; c = Math.abs(c); return (neg ? "−" : "") + (c < 10000 ? "$" + (c / 100).toFixed(2) : "$" + compact(Math.round(c / 100))); };
-const up = s => { const n = iN(s); return n < 60 ? n + "s" : n < 3600 ? Math.floor(n / 60) + "м" : n < 86400 ? Math.floor(n / 3600) + "ч" : Math.floor(n / 86400) + "д"; };
+const up = s => { const n = iN(s); const u = UI_LANG === "en" ? ["s", "m", "h", "d"] : ["s", "м", "ч", "д"]; return n < 60 ? n + u[0] : n < 3600 ? Math.floor(n / 60) + u[1] : n < 86400 ? Math.floor(n / 3600) + u[2] : Math.floor(n / 86400) + u[3]; };
+/* durHM — «2ч 0м» / «2h 0m» для аптайма */
+const durHM = s => { const h = Math.floor(iN(s) / 3600), m = Math.floor((iN(s) % 3600) / 60); return UI_LANG === "en" ? h + "h " + m + "m" : h + "ч " + m + "м"; };
 /* Честный total без двойного счёта кэша: prompt уже включает cached. */
 const uncachedTotal = (prompt, completion, cr, cw) => {
   prompt = +prompt || 0; completion = +completion || 0; cr = +cr || 0; cw = +cw || 0;
@@ -148,7 +151,7 @@ function rawA(hex, a) { const n = parseInt(String(hex).replace("#", ""), 16); if
  /* удалено: tag() — употреблений 0 */
 
 /* ---------------- state ---------------- */
-const S = { tab: "home", theme: "mono", status: null, usage: null, daily: null, end: [], breakers: [], locks: [], keys: [], kbp: null, health: [], logs: [], plogs: [], logKind: "request", logQuery: "", logLv: { info: true, warn: true, error: true }, logSort: null, proxy: null, combos: [], auto: true, mode: "tokens", usageMode: "tokens", usageView: "trend", calOff: 0, calSel: null, pSearch: "", pSort: "name", pFilter: "all", prov: null, cfg: null, _homeHash: "", _usageHash: "", _routeKey: "", _chanKey: "", _heatKey: "", _donutRatio: -1, proxyEndpoints: [], pxFeed: [], proxyLastErr: null };
+const S = { tab: "home", theme: "mono", status: null, usage: null, daily: null, end: [], breakers: [], locks: [], keys: [], kbp: null, health: [], logs: [], plogs: [], logKind: "request", logQuery: "", logLv: { info: true, retry: true, warn: true, error: true }, logSort: null, proxy: null, combos: [], auto: true, mode: "tokens", usageMode: "tokens", usageView: "trend", calOff: 0, calSel: null, pSearch: "", pSort: "name", pFilter: "all", prov: null, cfg: null, _homeHash: "", _usageHash: "", _routeKey: "", _chanKey: "", _heatKey: "", _donutRatio: -1, proxyEndpoints: [], pxFeed: [], proxyLastErr: null };
 
 /* ---------------- тема: единственная — «БД» (mono). Прошлые темы (ember/abyss/nebula/gray) удалены
    как темы: их палитры вырезаны из tokens.css, старые записи в localStorage больше не читаются. ---------------- */
@@ -294,7 +297,7 @@ function barChart(cv, labels, series, hgt, opts) {
       if (empty) {
         ctx.beginPath(); ctx.rect(L, T, iw, ih); ctx.strokeStyle = rawA(E.border, .7); ctx.stroke();
         ctx.fillStyle = E.muted; ctx.font = "12px " + E.mono; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText("нет данных", L + iw / 2, T + ih / 2);
+        ctx.fillText(I18N.t("нет данных"), L + iw / 2, T + ih / 2);
         ctx.textBaseline = "alphabetic"; ctx.textAlign = "start";
         return;
       }
@@ -400,7 +403,7 @@ function donut(cv, p, col, animate) {
     ctx.beginPath(); ctx.lineWidth = 12; ctx.lineCap = "round"; ctx.strokeStyle = rawA(E.border2, .7); ctx.arc(cx, cy, rr, 0, 6.283); ctx.stroke();
     ctx.beginPath(); ctx.lineWidth = 12; ctx.lineCap = "round"; ctx.strokeStyle = col || E.accent; ctx.arc(cx, cy, rr, -1.5708, -1.5708 + 6.283 * t); ctx.stroke();
     ctx.fillStyle = E.text; ctx.font = "700 20px " + E.mono; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(pct(p), cx, cy - 6);
-    ctx.fillStyle = E.muted; ctx.font = "10px " + E.mono; ctx.fillText("квоты", cx, cy + 12);
+    ctx.fillStyle = E.muted; ctx.font = "10px " + E.mono; ctx.fillText(I18N.t("квоты"), cx, cy + 12);
   }
   if (R.reduced || animate === false) dr(1);
   else { const t0 = performance.now(); requestAnimationFrame(function step(now) { const t = (now - t0) / 750; dr(Math.min(1, t)); if (t < 1) requestAnimationFrame(step); }); }

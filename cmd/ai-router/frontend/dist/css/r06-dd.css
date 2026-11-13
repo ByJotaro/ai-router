@@ -1,0 +1,116 @@
+/* ==================================================================
+   r11 «РЕЕСТР ЯДРА» · тематические дропдауны вместо нативных <select>.
+   Скоуп строго #panel-settings. Палитра/тени — tokens.css.
+   Закрытая плашка = 30px, радиус 10px (как числовые поля и степперы);
+   меню — своё, fixed, радиус 12px, строки 28px, скролл при многих вариантах.
+   ================================================================== */
+
+/* выравниваем радиус соседних плашек под дропдаун — один ритм в бланке */
+#panel-settings .r06-num,
+#panel-settings .r06-in,
+#panel-settings .r06-dd-btn { border-radius: 10px; }
+
+#panel-settings .r06-dd { position: relative; display: block; width: 100%; }
+
+/* нативный select остаётся в DOM источником значения и change-событий */
+#panel-settings .r06-dd > .r06-sel {
+  position: absolute; left: 0; top: 0; width: 1px; height: 1px;
+  min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
+  opacity: 0; pointer-events: none;
+  appearance: none; -webkit-appearance: none;
+}
+
+/* ---------- закрытая плашка ---------- */
+#panel-settings .r06-dd-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; height: 30px; min-height: 30px; margin: 0; padding: 0 9px 0 10px;
+  border: 1px solid var(--border); background: var(--panel-2);
+  color: var(--ink); font: 11.5px/1 var(--sans); letter-spacing: 0;
+  text-align: left; cursor: pointer;
+  transition: border-color var(--tr), box-shadow var(--tr), background var(--tr);
+}
+#panel-settings .r06-dd-btn:hover {
+  border-color: var(--border-2);
+  background: color-mix(in srgb, var(--panel-2) 76%, var(--panel-3));
+}
+#panel-settings .r06-dd.is-open .r06-dd-btn,
+#panel-settings .r06-dd-btn:focus-visible {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+#panel-settings .r06-dd-btn:disabled {
+  opacity: 0.5; cursor: not-allowed; box-shadow: none;
+}
+#panel-settings .r06-dd-btn:disabled:hover {
+  border-color: var(--border); background: var(--panel-2);
+}
+#panel-settings .r06-dd-val {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#panel-settings .r06-dd-chev {
+  flex: none; width: 6px; height: 6px; margin: -3px 1px 0 0;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(45deg); transform-origin: 50% 50%;
+  transition: transform var(--tr), border-color var(--tr), margin var(--tr);
+}
+#panel-settings .r06-dd.is-open .r06-dd-chev {
+  margin-top: 2px; transform: rotate(225deg); border-color: var(--accent-2);
+}
+
+/* ---------- открытое меню ---------- */
+#panel-settings .r06-dd-menu {
+  position: fixed; z-index: 70; box-sizing: border-box;
+  margin: 0; padding: 4px; list-style: none;
+  max-height: 210px; overflow-y: auto; overscroll-behavior: contain;
+  border: 1px solid var(--border-2); border-radius: 12px;
+  background: var(--panel-2); box-shadow: var(--shadow);
+  scrollbar-width: thin; scrollbar-color: var(--border-2) transparent;
+}
+#panel-settings .r06-dd-menu[hidden] { display: none; }
+#panel-settings .r06-dd.is-open .r06-dd-menu {
+  animation: r06dd-in 120ms var(--tr-m) both;
+  transform-origin: top center;
+}
+#panel-settings .r06-dd.is-up.is-open .r06-dd-menu {
+  animation-name: r06dd-in-up;
+  transform-origin: bottom center;
+}
+@keyframes r06dd-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes r06dd-in-up {
+  from { opacity: 0; transform: translateY(4px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #panel-settings .r06-dd.is-open .r06-dd-menu { animation: none; }
+}
+
+#panel-settings .r06-dd-opt {
+  display: flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 7px 0 9px; border-radius: 7px;
+  font: 11.5px/1 var(--sans); color: var(--ink2); cursor: pointer;
+  white-space: nowrap; overflow: hidden;
+  transition: background var(--tr), color var(--tr);
+}
+#panel-settings .r06-dd-opt .r06-dd-tx {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis;
+}
+#panel-settings .r06-dd-opt:hover,
+#panel-settings .r06-dd-opt.is-act {
+  background: var(--panel-3); color: var(--ink);
+}
+#panel-settings .r06-dd-opt.is-sel { color: var(--ink); }
+#panel-settings .r06-dd-opt.is-sel:hover,
+#panel-settings .r06-dd-opt.is-sel.is-act {
+  background: var(--accent-soft); color: var(--ink);
+}
+#panel-settings .r06-dd-opt.is-dis {
+  color: var(--faint); cursor: default; background: transparent;
+}
+#panel-settings .r06-dd-tick {
+  flex: none; font: 11px/1 var(--sans); color: var(--accent-2);
+}

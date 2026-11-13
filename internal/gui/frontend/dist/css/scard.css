@@ -1,0 +1,200 @@
+/* ==================================================================
+   scard — вкладка «Настройки»: реестр параметров ядра.
+   Категории — полосой чипов в единственной липкой строке сверху.
+   Разделы отделяются отступом и типографикой: ни рамок карточек,
+   ни hairline между строками, ни пунктирных лидеров.
+   Цвета — только из tokens.css (тема «БД»).
+   ================================================================== */
+
+.sc-root { display: flex; flex-direction: column; min-width: 0; padding: 0 0 26px; }
+
+/* ---------- единственная липкая строка ---------- */
+.sc-bar {
+  position: sticky; top: 0; z-index: 6;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px;
+  padding: 7px 20px 8px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+.sc-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 0; flex: 1 1 auto; min-width: 0; }
+.sc-chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 0; background: transparent; cursor: pointer; white-space: nowrap;
+  padding: 5px 6px; border-radius: 999px; color: var(--ink2);
+  font-family: var(--sans); font-size: 12px; letter-spacing: .1px;
+  transition: background var(--tr), color var(--tr);
+}
+.sc-chip:hover { background: var(--panel-2); color: var(--ink); }
+.sc-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sc-chip.is-on { background: var(--panel-2); color: var(--ink); }
+.sc-chip-n { font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.2px; color: var(--faint); }
+.sc-chip.is-on .sc-chip-n { color: var(--accent); }
+/* точка «в разделе есть правки»: не участвует в потоке, ширина чипа не меняется */
+.sc-chip.is-dirty::after {
+  content: ""; position: absolute; top: 2px; right: 1px;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+}
+.sc-bar-act { display: flex; align-items: center; gap: 5px; margin-left: auto; flex: none; }
+
+.sc-pill {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); background: transparent; border-radius: 999px; padding: 4px 8px;
+  white-space: nowrap; transition: color var(--tr), background var(--tr);
+}
+.sc-pill.is-dirty { color: var(--accent-ink); background: var(--accent); }
+
+/* ---------- пояснение под полосой ---------- */
+.sc-note {
+  padding: 9px 20px 0; color: var(--faint);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .3px;
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+}
+.sc-note b { color: var(--ink2); font-weight: normal; }
+
+/* ---------- раздел ---------- */
+.sc-band { padding: 20px 20px 2px; min-width: 0; }
+.sc-band-h { display: flex; align-items: baseline; gap: 10px; }
+.sc-band-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: 2.2px; text-transform: uppercase; color: var(--faint); }
+.sc-band-k b { color: var(--accent); font-weight: normal; }
+.sc-band-c { margin-left: auto; font-family: var(--mono); font-size: 9.5px; color: var(--faint); white-space: nowrap; }
+.sc-band-c.is-dirty { color: var(--accent); }
+.sc-band-t {
+  margin: 1px 0 6px; font-family: var(--sans); font-weight: 500;
+  font-size: 18px; line-height: 1.25; letter-spacing: .2px; color: var(--ink);
+}
+
+/* ---------- сетка строк ---------- */
+.sc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 26px; }
+.sc-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 170px 20px;
+  align-items: center; gap: 10px;
+  padding: 4px 8px; margin: 0 -8px; border-radius: var(--r-sm);
+  transition: background var(--tr);
+}
+.sc-row:hover { background: rgba(255, 255, 255, .032); }
+.sc-l { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.sc-l-t { font-size: 12.5px; line-height: 1.2; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-l-u { font-family: var(--mono); font-size: 10px; font-style: normal; color: var(--faint); margin-left: 5px; }
+.sc-l-p { font-family: var(--mono); font-size: 9.5px; line-height: 1.25; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-l-w { display: none; font-family: var(--mono); font-size: 9.5px; line-height: 1.25; font-style: normal; color: var(--accent-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-row.is-dirty .sc-l-p { display: none; }
+.sc-row.is-dirty .sc-l-w { display: block; }
+.sc-row.is-dirty .sc-l-t { color: var(--ink); }
+
+/* ---------- общий вид поля ---------- */
+.sc-nin, .sc-tin, .sc-sel {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink);
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r-sm);
+  height: 26px; padding: 0 8px; min-width: 0; width: 100%;
+}
+.sc-nin:hover, .sc-tin:hover, .sc-sel:hover { border-color: var(--border); }
+.sc-nin:focus, .sc-tin:focus, .sc-sel:focus { outline: none; border-color: var(--accent); }
+.sc-row.is-dirty .sc-nin, .sc-row.is-dirty .sc-tin, .sc-row.is-dirty .sc-sel { color: var(--accent-2); }
+
+/* ---------- поле: число (степпер внутри поля) ---------- */
+.sc-num {
+  display: flex; align-items: center; width: 100%; height: 26px;
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--r-sm);
+  transition: border-color var(--tr);
+}
+.sc-num:hover { border-color: var(--border); }
+.sc-num:focus-within { border-color: var(--accent); }
+.sc-nin { border: 0; background: transparent; height: 24px; padding: 0 2px; text-align: right; -moz-appearance: textfield; appearance: textfield; font-variant-numeric: tabular-nums; }
+.sc-nin:hover, .sc-nin:focus { border: 0; }
+.sc-nin::-webkit-outer-spin-button, .sc-nin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sc-step {
+  width: 22px; height: 24px; flex: none; border: 0; background: transparent; color: var(--faint);
+  font-family: var(--mono); font-size: 13px; line-height: 1; cursor: pointer; border-radius: 6px;
+}
+.sc-step:hover { color: var(--ink); background: var(--panel-3); }
+.sc-step:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ---------- поле: секрет ---------- */
+.sc-pw { position: relative; display: flex; width: 100%; }
+.sc-pw .sc-tin { padding-right: 28px; }
+.sc-eye {
+  position: absolute; right: 3px; top: 3px; width: 20px; height: 20px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; padding: 0;
+}
+.sc-eye:hover { color: var(--ink); background: var(--panel-3); }
+.sc-eye:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.sc-eye svg { display: block; }
+.sc-eye .sc-eye-slash { opacity: 0; transition: opacity var(--tr); }
+.sc-eye.is-on .sc-eye-slash { opacity: 1; }
+
+/* ---------- поле: перечисление ---------- */
+.sc-selw { position: relative; display: flex; align-items: center; width: 100%; }
+.sc-sel { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 20px; }
+.sc-selc { position: absolute; right: 7px; pointer-events: none; color: var(--faint); font-size: 8px; }
+
+/* ---------- поле: переключатель ---------- */
+.sc-sw { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.sc-sw input { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
+.sc-sw-t {
+  position: relative; width: 30px; height: 16px; border-radius: 999px;
+  background: var(--panel-3); border: 1px solid var(--border); flex: none;
+  transition: background var(--tr), border-color var(--tr);
+}
+.sc-sw-t i {
+  position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted); transition: left var(--tr), background var(--tr);
+}
+.sc-sw input:checked + .sc-sw-t { background: var(--accent-dim); border-color: var(--accent); }
+.sc-sw input:checked + .sc-sw-t i { left: 16px; background: var(--accent-2); }
+.sc-sw input:focus-visible + .sc-sw-t { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sc-sw-x { font-family: var(--mono); font-size: 9.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--faint); }
+.sc-sw input:checked ~ .sc-sw-x { color: var(--accent-2); }
+
+/* ---------- отмена одной правки ---------- */
+.sc-undo {
+  width: 20px; height: 20px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--accent-2); font-size: 12px; line-height: 1; cursor: pointer;
+  visibility: hidden; flex: none; padding: 0;
+}
+.sc-row.is-dirty .sc-undo { visibility: visible; }
+.sc-undo:hover { background: var(--accent-dim); color: var(--ink); }
+.sc-undo:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; visibility: visible; }
+
+/* ---------- лестница уровней маршрутизации ---------- */
+.sc-tiers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 2px; grid-column: 1 / -1; }
+.sc-tier {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--panel-2); border-radius: 999px; padding: 2px 4px 2px 10px;
+  transition: box-shadow var(--tr);
+}
+.sc-tier.is-def { box-shadow: inset 0 0 0 1px var(--accent); }
+.sc-tier-n { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.sc-tier-t { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+.sc-tier-d { font-family: var(--mono); font-size: 9px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--accent); padding-right: 4px; }
+.sc-tier-b {
+  width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent;
+  color: var(--muted); font-size: 11px; line-height: 1; cursor: pointer; padding: 0;
+}
+.sc-tier-b:hover { background: var(--panel-3); color: var(--ink); }
+.sc-tier-b:disabled { opacity: .28; cursor: default; background: transparent; }
+.sc-tier-b:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sc-tier-hint { align-self: center; font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+
+/* ---------- подвал ---------- */
+.sc-foot {
+  margin: 22px 20px 0; padding-top: 10px; border-top: 1px solid var(--rule);
+  display: flex; flex-wrap: wrap; gap: 4px 16px;
+  font-family: var(--mono); font-size: 9.5px; color: var(--faint);
+}
+.sc-foot b { color: var(--ink2); font-weight: normal; }
+
+/* ---------- пустое состояние ---------- */
+.sc-empty { padding: 26px 20px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* ---------- узкое окно (мин. 760×520) ---------- */
+@media (max-width: 980px) {
+  .sc-grid { grid-template-columns: minmax(0, 1fr); }
+  .sc-bar { padding: 6px 13px 8px; gap: 4px 8px; }
+  .sc-band { padding: 18px 13px 0; }
+  .sc-note { padding: 8px 13px 0; }
+  .sc-foot { margin: 20px 13px 0; }
+  .sc-row { grid-template-columns: minmax(0, 1fr) 190px 20px; }
+}
+@media (max-width: 860px) { .sc-chip-n { display: none; } }

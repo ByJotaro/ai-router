@@ -16,11 +16,12 @@ import (
 // Inbound OpenCode headers forwarded from the gateway request to the opencode
 // zen upstream. zen 2026-09 rejects /responses without a session as
 // 400 MissingSessionID; since 2026-09-17 free-tier additionally requires a
-// SERVER-KNOWN session ("free tier can only be used from within OpenCode"):
-// TUI-minted ses_* from the local opencode.db pass on any egress/UA while
-// generated/random ids fail everywhere (MITM isolation matrix). Missing
-// sessions therefore come from the harvest pool first (see sessionpool.go),
-// generated fallback last.
+// session id, and the gate validates its SHAPE rather than server knowledge:
+// the 1.19-era 30-char ses_* (12 hex from a descending unixMilli stamp + 14
+// alnum) passes on any egress/UA, while ids of the wrong shape draw the
+// gate-403 (sessionpool.go). Real TUI-minted ids are preferred (harvest pool,
+// see sessionpool.go); the per-egress generator is the fallback, so a lease
+// never goes identity-less.
 type ctxKeyClientHeaders struct{}
 
 // opencodeHeaderAllow is the exact whitelist forwarded from the inbound
