@@ -155,7 +155,11 @@ func TestSessionPoolKeepsPinOfSeenEgress(t *testing.T) {
 		clock = clock.Add(time.Minute)
 		p.NoteEgressSeen("key-a")
 	}
-	if id := p.NextFor("key-b"); id != "" {
+	// A stranger must not receive the id pinned to a LIVE egress. Since
+	// 2026-11-22 supply exhaustion mints a per-egress synthetic identity
+	// instead of answering "" (the 503 "no free session" was the whole 50-agent
+	// starvation), so the invariant is "not that id", not "no id".
+	if id := p.NextFor("key-b"); id == "ses_cccc3333" {
 		t.Fatalf("a live egress lost its pin to a stranger: %q", id)
 	}
 }
@@ -180,7 +184,7 @@ func TestSessionPoolReclaimRespectsLastUseCooldown(t *testing.T) {
 	}
 	p.NoteEgressSeen("key-a")
 	clock = now.Add(6 * time.Minute) // past the seen TTL, inside the cooldown
-	if id := p.NextFor("key-b"); id != "" {
+	if id := p.NextFor("key-b"); id == "ses_dddd4444" {
 		t.Fatalf("id reused on a second egress 6 min after its last use: %q", id)
 	}
 	clock = now.Add(11 * time.Minute) // now outside the cooldown

@@ -2,6 +2,7 @@
 // window, plus a spawned sidecar wired to them. Everything binds ephemeral
 // ports, so the suite can run next to the live stack without touching it.
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 export const SIDECAR_DIR = resolve(import.meta.dir, "..");
@@ -12,7 +13,7 @@ function listen(handler) {
 }
 
 export function tempDir(tag) {
-  const base = process.env.SIDECAR_TEST_DIR || join("D:/Temp/s", "sidecar-tests");
+  const base = process.env.SIDECAR_TEST_DIR || join(tmpdir(), "sidecar-tests");
   mkdirSync(base, { recursive: true });
   const dir = mkdtempSync(join(base, tag + "-"));
   return dir;

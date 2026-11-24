@@ -63,6 +63,12 @@ type Router struct {
 	// transport is an optional independent outbound transport capability.
 	// nil means direct/static-provider transport.
 	transport TransportProvider
+
+	// canaryMu guards canaryStat (per provider): how many requests were
+	// sampled and how many failed. The budget is per process, not persisted.
+	canaryMu   sync.Mutex
+	canaryStat map[string]*canaryState
+	canaryHTTP *http.Client
 }
 
 // Transport exposes the outbound transport for lifecycle ops (graceful
@@ -157,6 +163,8 @@ func New(provs map[string]*provider.Provider, opts ...Option) *Router {
 		encrypt:        o.Encrypt,
 		decrypt:        o.Decrypt,
 		transport:      o.Transport,
+		canaryStat:     map[string]*canaryState{},
+		canaryHTTP:     &http.Client{Transport: http.DefaultTransport},
 	}
 	if r.poolCfg.DisableAfter <= 0 {
 		r.poolCfg.DisableAfter = 3
@@ -683,6 +691,70 @@ type Result struct {
 	RetryMS  int64
 }
 
+// fallbackTarget picks the first fallback provider that maps the pinned model id
+// via model_map. Only wall-class verdicts qualify: a 400/404 is the request's
+// own shape and the same everywhere, while 429/5xx/gate-terminal mean the
+// primary's egress is spent, not that the request is bad.
+func (r *Router) fallbackTarget(p *provider.Provider, model string, err error) (*provider.Provider, string, bool) {
+	if p == nil || len(p.Fallback) == 0 || !fallbackWorthy(err) {
+		return nil, "", false
+	}
+	for _, name := range p.Fallback {
+		r.mu.RLock()
+		fb := r.providers[name]
+		r.mu.RUnlock()
+		if fb == nil || fb.Name == p.Name {
+			continue
+		}
+		target := fb.ModelMap[model]
+		if target == "" {
+			continue
+		}
+		if !fb.ModelAllowed(target) {
+			continue
+		}
+		return fb, target, true
+	}
+	return nil, "", false
+}
+
+// fallbackWorthy reports whether a failure means "this egress is spent".
+func fallbackWorthy(err error) bool {
+	if err == nil {
+		return false
+	}
+	var use *UpstreamStatusError
+	if errors.As(err, &use) {
+		return use.Status == 429 || use.Status >= 500
+	}
+	msg := strings.ToLower(err.Error())
+	for _, m := range []string{"too many requests", "free tier", "rate limit", "circuit open", "pool has no ready egress", "service unavailable", "eof"} {
+		if strings.Contains(msg, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// stripReasoningParams drops the zen-specific reasoning object: OVH answers 400
+// "feature 'extra arguments: {\"reasoning\":{...}}' is not currently supported"
+// on exactly this shape (measured 2026-11-17). reasoning_effort stays.
+func stripReasoningParams(body []byte) []byte {
+	var m map[string]any
+	if json.Unmarshal(body, &m) != nil {
+		return body
+	}
+	if _, ok := m["reasoning"]; !ok {
+		return body
+	}
+	delete(m, "reasoning")
+	out, err := json.Marshal(m)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
 // ErrNoCandidates is returned when no provider serves the model.
 var ErrNoCandidates = errors.New("no provider serves model")
 
@@ -727,6 +799,41 @@ type UpstreamStatusError struct {
 	// incident 503s logged attempts=0 over 421 real calls (2026-11-04).
 	Attempts int64
 	RetryMS  int64
+	// Proxy is the egress the LAST attempt used (lease proxy or the pinned key
+	// lane). Failure rows in request_log carried proxy='' for every error — the
+	// event is built with res=nil — so an unpinned key, a dead lane and a
+	// burned exit were indistinguishable in the journal (advisor audit
+	// 2026-11-16: "403 … proxy:''" proved nothing about pinning).
+	Proxy string
+}
+
+// maxI64 returns the larger attempt count: sidecar telemetry reports the hop's
+// own retries, tries counts router-level attempts. The journal needs both.
+func maxI64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// parkDuration403 separates the two markers: an account-benefit restriction
+// ("Free text use is temporarily restricted … does not deduct paid funds") is
+// an ACCOUNT verdict measured in minutes, while a region edge block moves with
+// the exit and is worth re-testing sooner. Parking a benefits-restricted key
+// for 90 s re-bought the same 630 KB 403 every few requests.
+func parkDuration403(body string) time.Duration {
+	if strings.Contains(strings.ToLower(body), "benefits_restricted") {
+		return 30 * time.Minute
+	}
+	return 90 * time.Second
+}
+
+// parkable403 reports whether a 403 body blames the key's egress or account
+// rather than the request: a gate/model verdict (opencode free tier) must not
+// park a healthy key, while these markers mean "this lane/account is blocked".
+func parkable403(msg string) bool {
+	m := strings.ToLower(msg)
+	return strings.Contains(m, "region") || strings.Contains(m, "benefits_restricted")
 }
 
 // isPoolExhaustedErr: 503-хвосты пула (бюджет выгорел, провайдер жив).
@@ -854,6 +961,18 @@ func (r *Router) Call(ctx context.Context, model string, body []byte, stream boo
 		if err == nil {
 			r.lock.Reset(real)
 			return res, nil
+		}
+		// Cross-provider fallback for the PINNED id: the pin branch never
+		// cascades, so a walled opencode lane used to 429 the whole turn
+		// (measured 2026-11-17: 140x429 / 42.8% of errors). A fallback provider
+		// publishes the same capability under another id via model_map.
+		if fbProv, fbModel, ok := r.fallbackTarget(p, real, err); ok {
+			fbBody := stripReasoningParams(body)
+			if res2, err2 := r.tryProvider(ctx, fbProv, withModel(fbBody, fbModel), stream); err2 == nil {
+				r.lock.Reset(real)
+				slog.Default().Warn("pin fallback served", "primary", p.Name+"/"+real, "fallback", fbProv.Name+"/"+fbModel)
+				return res2, nil
+			}
 		}
 		r.recordModelFailure(real, err)
 		return nil, err
@@ -1329,8 +1448,16 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 	// 403 the body itself caused. Gated by provider: a "-free"-looking id on a
 	// non-opencode upstream never gets a foreign prompt or tool schema.
 	if isOpencodeUpstream(p) {
-		slog.Default().Info("DEBUG: isOpencodeUpstream=true, injecting canonical", "provider", p.Name, "baseURL", p.BaseURL)
-		body = withCanonicalSystem(withAgentTools(body))
+		// Shape order matters: the marker sanitizer runs BEFORE the head is
+		// injected. withCanonicalSystem treats a marker in ANY role as "the
+		// head is already there" and returns the body untouched, so an echoed
+		// copy in a user/tool message (a client quoting its own prompt, a read
+		// tool result) suppressed the injection; sanitizing afterwards then
+		// broke the echo AND left the request without the canonical head —
+		// gatedShapeComplete failed and the turn 403/429'd on a healthy egress.
+		// Sanitize first, so the only marker left for the injector to see is a
+		// real system head (verbatim) and an echoed copy is always broken.
+		body = withCanonicalSystem(breakCanonMarkerOutsideSystem(withAgentTools(body)))
 		// Every gated body leaves shaped as far as the stream flag goes: the
 		// Responses lane converts and forces stream:true, and the chat lane
 		// forces it too (see doRequest/chat_destream.go — a non-stream body is
@@ -1353,6 +1480,13 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 			err = fmt.Errorf("provider %s: circuit open, retry in %ds", p.Name, int(time.Until(until).Seconds())+1)
 		}
 		return nil, &UpstreamStatusError{Status: http.StatusServiceUnavailable, Err: err}
+	}
+	// Canary: a bounded sample of this provider's traffic goes to the test
+	// instance first. Any non-2xx (429 included) or timeout falls through to
+	// the live path with the same shaped body — a failing stand costs latency,
+	// never availability.
+	if res, ok := r.canaryTry(ctx, p, body, model, stream); ok {
+		return res, nil
 	}
 
 	attempts := 1
@@ -1378,6 +1512,10 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 	var lastErr error
 	lastStatus := 0
 	var lastAttempts, lastRetryMS int64
+	var lastProxy string
+	// tries counts real attempts: the journal logged attempts=0 on every
+	// terminal error because lastAttempts is only fed by sidecar telemetry.
+	tries := 0
 	// lastRetryAfter удалён: outward RA стёрт (swap mode 2026-09-11).
 	// Внутренний key-backoff живёт через pl.Report выше.
 	seenProxy := map[string]bool{}
@@ -1399,7 +1537,15 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 	// visible 429 per request and a drained pool "always 429").
 	const maxSessionSwaps = 2
 	sessionSwaps := 0
+	// maxKeyPinSwaps bounds the key-pinned 403 hop. A restricted account is
+	// common (inferway free text) and the exit is per key: 3 swaps left a
+	// 630 KB session at 2 of 3 requests dying after four keys, while the
+	// fourth key served. Body re-upload is the cost, so the budget is 8 —
+	// parked keys make later requests skip them entirely.
+	const maxKeyPinSwaps = 8
+	keyPinSwaps := 0
 	for i := 0; i < attempts; i++ {
+		tries++
 		var key *pool.Key
 		var err error
 		if len(p.APIKeys) > 0 {
@@ -1416,7 +1562,11 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 			}
 		}
 		var lease *Lease
-		if r.transport != nil {
+		// A key bound to its own proxy (ProviderConf.KeyProxies) pins this
+		// account to one egress IP: the transport lease would hand out a
+		// random egress and break the 1 key = 1 IP contract, so skip it.
+		keyPinned := key != nil && key.Proxy != ""
+		if r.transport != nil && !keyPinned {
 			acqCtx := ctx
 			cancelAcq := context.CancelFunc(nil)
 			if dl, ok := ctx.Deadline(); ok {
@@ -1457,6 +1607,9 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 			}
 		}
 		res, status, proxyID, err := r.doRequestWithLease(ctx, cl, p, key, body, lease)
+		if proxyID != "" {
+			lastProxy = proxyID
+		}
 		if err != nil {
 			// Отмена клиента: лизу вернуть, попытки стоп — без свапа дальше.
 			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
@@ -1522,6 +1675,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 			if status == http.StatusForbidden && isPoolLease &&
 				res.Header.Get(gateTerminalHeader) != "" {
 				peek, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
+				peek = decodeBodyPrefix(res.Header.Get("Content-Encoding"), peek)
 				res.Body.Close()
 				r.emitFallback(p, model, status)
 				// Streak, не burn: гейт бывает МОДЕЛЬНЫМ (12× свип mimo —
@@ -1533,7 +1687,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 				// pinned-per-egress до 72h expiry).
 				noteSessionGate(getSessionPool(), res)
 				lastErr = fmt.Errorf("provider %s: Forbidden (%s) [%s]", p.Name, gateExcerpt(peek), gateTerminalMarker)
-				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
+				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: maxI64(lastAttempts, int64(tries)), RetryMS: lastRetryMS, Proxy: lastProxy}
 			}
 			// 403 на pool-лизе: свап на свежий лиз внутри провайдера
 			// (2026-09-16: клиент 403 не видит вообще). Region-body —
@@ -1551,6 +1705,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 				// swapping — a gate verdict must not burn up to maxRegionSwaps
 				// full sweeps (2026-09-17 spark: 4 sweeps per request).
 				peek, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
+				peek = decodeBodyPrefix(res.Header.Get("Content-Encoding"), peek)
 				if isAccountGateBody(peek) {
 					res.Body.Close()
 					r.emitFallback(p, model, status)
@@ -1558,7 +1713,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 					// выше: peeked-гейт тоже терминальный вердикт аккаунта.
 					noteSessionGate(getSessionPool(), res)
 					lastErr = fmt.Errorf("provider %s: Forbidden (%s) [%s]", p.Name, gateExcerpt(peek), gateTerminalMarker)
-					return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
+					return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: maxI64(lastAttempts, int64(tries)), RetryMS: lastRetryMS, Proxy: lastProxy}
 				}
 				res.Body.Close()
 				lastErr = fmt.Errorf("provider %s: %s", p.Name, http.StatusText(status))
@@ -1576,11 +1731,24 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 			if key != nil {
 				pl.Report(key, status, retryAfter)
 			}
-			// Keep the upstream's own reason for a 400: the image-input
+			// Keep the upstream's own reason for a 400/403: the image-input
 			// refusal is actionable (another egress may have image support)
-			// and the gateway shapes it as a retryable 503, never a fatal 400.
-			if status == http.StatusBadRequest {
+			// and the gateway shapes it as a retryable 503, never a fatal 400;
+			// a 403 body tells a region rejection from an account-benefit
+			// restriction ("Free text use is temporarily restricted").
+			if status == http.StatusBadRequest || status == http.StatusForbidden {
 				peek, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
+				peek = decodeBodyPrefix(res.Header.Get("Content-Encoding"), peek)
+				// A 403 that names the key's exit or account (region_error,
+				// account_benefits_restricted) is a verdict about THAT key, not
+				// about the model: soft-park it so the next request does not
+				// re-upload the whole body to the same dead lane and hop again
+				// (advisor 2026-11-16: a 630 KB session paid ~4 uploads per
+				// request for the whole run). RateLimitedUntil only — failures
+				// stay untouched, so the key returns after the park expires.
+				if status == http.StatusForbidden && key != nil && parkable403(string(peek)) {
+					pl.Park(key, parkDuration403(string(peek)), gateExcerpt(peek))
+				}
 				if ex := errorExcerpt(peek); ex != "" {
 					res.Body.Close()
 					lastErr = fmt.Errorf("provider %s: %s [%s]", p.Name, http.StatusText(status), ex)
@@ -1589,17 +1757,63 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 					lastErr = fmt.Errorf("provider %s: %s", p.Name, http.StatusText(status))
 				}
 			} else {
+				// A 429 body names the verdict ("Free usage limit reached …
+				// resets at 2026-11-20T23:58:00Z") and that is the one thing the
+				// owner can act on: the generic "Too Many Requests" sent him
+				// hunting for headers while the shared daily budget was simply
+				// gone. The body is consumed here anyway (the response is
+				// terminal), so peeking costs nothing.
+				peek, _ := io.ReadAll(io.LimitReader(res.Body, 2<<10))
 				res.Body.Close()
-				lastErr = fmt.Errorf("provider %s: %s", p.Name, http.StatusText(status))
+				if ex := errorExcerpt(decodeBodyPrefix(res.Header.Get("Content-Encoding"), peek)); ex != "" {
+					lastErr = fmt.Errorf("provider %s: %s [%s]", p.Name, http.StatusText(status), ex)
+				} else {
+					lastErr = fmt.Errorf("provider %s: %s", p.Name, http.StatusText(status))
+				}
 			}
-			if status == http.StatusTooManyRequests && isOpencodeUpstream(p) && sessionSwaps < maxSessionSwaps {
-				// MarkDead unpins the id; the extra attempt re-picks a live one.
-				if sid := sessionGateID(res); sid != "" {
-					getSessionPool().MarkDead(sid)
-					slog.Warn("session swap on 429 (in-request)", "provider", p.Name, "ses", sesPrefix(sid), "swap", sessionSwaps+1)
-					sessionSwaps++
-					attempts++
-					continue
+			// A 403 on a KEY-PINNED request (inferway: 1 key = 1 egress IP) is
+			// a verdict about that key's exit, not about the model: the same
+			// account answered region_error while its neighbours served. Hop
+			// to the next key instead of surfacing it — bounded by the same
+			// region swap budget as the pool path (2026-11-16: a 175k-token
+			// session saw "region_error" on every first attempt).
+			if status == http.StatusForbidden && key != nil && keyPinSwaps < maxKeyPinSwaps {
+				r.emitFallback(p, model, status)
+				keyPinSwaps++
+				attempts++
+				continue
+			}
+			if status == http.StatusTooManyRequests && isOpencodeUpstream(p) {
+				if sessionSwaps < maxSessionSwaps {
+					// MarkDead unpins the id; the extra attempt re-picks a live one.
+					if sid := sessionGateID(res); sid != "" {
+						// A 429 on this lane says nothing about the id's validity
+						// elsewhere, so the two-gate streak in noteSessionGate is
+						// still the retire rule for genuinely dead ids. The shared
+						// day boundary is per-address allowance (measured
+						// 2026-11-20 21:30: 200s kept flowing), so it must not
+						// freeze retirement.
+						// Release, not MarkDead: a 429 on this lane says
+						// nothing about the id elsewhere, and retiring it on
+						// every egress 429 starved the pool into fabricated
+						// sessions (guaranteed gate rejection).
+						getSessionPool().Release(sid)
+						slog.Warn("session swap on 429 (in-request)", "provider", p.Name, "ses", sesPrefix(sid), "swap", sessionSwaps+1)
+						sessionSwaps++
+						attempts++
+						continue
+					}
+				}
+				// Every session swap is spent and the lane still refuses: the
+				// egress addresses themselves are out of allowance. Swap the
+				// fleet (throttled) instead of retrying the same spent exits.
+				// Only a request the gate actually evaluated can carry that
+				// verdict: shape-less 429s (GUI health, combo steps, stream:false,
+				// invalid JSON) are answered unmodified by the sweep precisely
+				// because they say nothing about the egress — escalating on them
+				// rebuilt the whole wide fleet for a health probe.
+				if gateShapeOK(ctx) {
+					maybeEscalatePoolRebuild(fmt.Sprintf("provider=%s model=%s attempts=%d", p.Name, model, attempts))
 				}
 			}
 			// Only a result the caller will actually see counts as a fallback
@@ -1613,11 +1827,11 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 				if status != http.StatusForbidden && status != http.StatusNotFound {
 					r.recordBreakerFailure(p, model, lastErr.Error())
 				}
-				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
+				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: maxI64(lastAttempts, int64(tries)), RetryMS: lastRetryMS, Proxy: lastProxy}
 			}
 			if status >= 500 && act == "" {
 				r.recordBreakerFailure(p, model, lastErr.Error())
-				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
+				return nil, &UpstreamStatusError{Status: status, Err: lastErr, Attempts: maxI64(lastAttempts, int64(tries)), RetryMS: lastRetryMS, Proxy: lastProxy}
 			}
 			continue
 		}
@@ -1644,6 +1858,10 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 		// Retry telemetry from the hop that actually retried (sidecar): its
 		// response carries the count and the wall time the retries cost.
 		attempts, retryMS := parseRetryTelemetry(res.Header)
+		// The upstream honoured our advertised br/zstd and Go decodes only
+		// gzip; decode here so clients never receive compressed bytes under a
+		// plain JSON content type (see decode.go).
+		res = decodeUpstreamBody(res)
 		return &Result{Provider: p.Name, Status: status, Header: res.Header, Resp: res, ConnectionID: conn, Model: model, Proxy: proxyID, WaitedMS: waited, Attempts: attempts, RetryMS: retryMS}, nil
 	}
 	// NO home-IP responses-fallback: the old path dialed opencode.ai direct
@@ -1673,7 +1891,7 @@ func (r *Router) tryProvider(ctx context.Context, p *provider.Provider, body []b
 		return nil, lastErr
 	}
 	if lastStatus != 0 {
-		return nil, &UpstreamStatusError{Status: lastStatus, Err: lastErr, Attempts: lastAttempts, RetryMS: lastRetryMS}
+		return nil, &UpstreamStatusError{Status: lastStatus, Err: lastErr, Attempts: maxI64(lastAttempts, int64(tries)), RetryMS: lastRetryMS, Proxy: lastProxy}
 	}
 	return nil, lastErr
 }
@@ -1774,8 +1992,17 @@ func (r *Router) doRequest(ctx context.Context, cl *http.Client, p *provider.Pro
 	switch {
 	case p.AuthMode == "public":
 		req.Header.Set("Authorization", "Bearer public")
+	case p.AuthMode == "api-key" && key != nil:
+		// DeepAI Code lane authenticates on `api-key`, not on Authorization
+		// (Bearer answers 401 auth_required; measured 2026-11-19).
+		req.Header.Set("api-key", key.Value)
 	case p.AuthMode != "none" && key != nil:
 		req.Header.Set("Authorization", "Bearer "+key.Value)
+	}
+	// Provider-pinned static headers (DeepAI Code: X-DeepAI-Code-Theos/Instance/
+	// Machine). Applied last so they cannot be lost to a default.
+	for k, v := range p.Headers {
+		req.Header.Set(k, v)
 	}
 	// zen Console gates free tier on the OpenCode session headers, not just
 	// UA (2026-09: 400 MissingSessionID without x-opencode-session). This lane
@@ -1876,7 +2103,7 @@ func (r *Router) doRequest(ctx context.Context, cl *http.Client, p *provider.Pro
 	// different live id instead of reusing the same banned identity forever.
 	if res != nil && res.StatusCode == http.StatusTooManyRequests && isOpencodeUpstream(p) {
 		if sid := sessionGateID(res); sid != "" {
-			getSessionPool().MarkDead(sid)
+			getSessionPool().Release(sid)
 		}
 	}
 	return res, res.StatusCode, nil
@@ -1887,7 +2114,17 @@ func (r *Router) doRequest(ctx context.Context, cl *http.Client, p *provider.Pro
 func (r *Router) doRequestWithLease(ctx context.Context, cl *http.Client, p *provider.Provider, key *pool.Key, body []byte, lease *Lease) (*http.Response, int, string, error) {
 	proxyID := p.Egress
 	requestClient := cl
-	if lease != nil {
+	if key != nil && key.Proxy != "" {
+		// Per-key egress: the provider may also carry a pool transport, but a
+		// key→proxy binding (GUI "bind proxy to key", KeyProxies in config)
+		// wins so one account always leaves from one IP.
+		pc, perr := clientThroughProxy(cl, key.Proxy)
+		if perr != nil {
+			return nil, 0, key.Proxy, fmt.Errorf("provider %s key proxy: %w", p.Name, perr)
+		}
+		requestClient = pc
+		proxyID = key.Proxy
+	} else if lease != nil {
 		requestClient = lease.Client
 		proxyID = lease.Proxy
 	}
@@ -1928,6 +2165,33 @@ func (b *leaseBody) Close() error {
 // New code uses the generic transport capability.
 func (r *Router) doRequestPooled(ctx context.Context, cl *http.Client, p *provider.Provider, key *pool.Key, body []byte) (*http.Response, int, string, error) {
 	return r.doRequestWithLease(ctx, cl, p, key, body, nil)
+}
+
+// clientThroughProxy clones base's transport with an HTTP proxy URL — the
+// per-key egress path (KeyProxies). Same contract as proxiedThrough: the base
+// client is never mutated, so concurrent keys on one provider stay isolated.
+func clientThroughProxy(base *http.Client, proxy string) (*http.Client, error) {
+	baseTr := http.DefaultTransport
+	if base != nil && base.Transport != nil {
+		baseTr = base.Transport
+	}
+	tr, ok := baseTr.(*http.Transport)
+	if !ok {
+		tr = http.DefaultTransport.(*http.Transport).Clone()
+	} else {
+		tr = tr.Clone()
+	}
+	u, err := url.Parse(proxyAddrScheme(proxy))
+	if err != nil {
+		return nil, err
+	}
+	tr.Proxy = http.ProxyURL(u)
+	tr.DialTLSContext = utlsDialTLS
+	out := &http.Client{Transport: tr}
+	if base != nil {
+		out.Timeout = base.Timeout
+	}
+	return out, nil
 }
 
 // proxiedThrough clones base's transport with an HTTP proxy pointing at the
@@ -2067,6 +2331,7 @@ func withAgentTools(body []byte) []byte {
 		canonicalNames[c] = true
 	}
 	kept := arr[:0]
+	var dropped []string
 	for _, e := range arr {
 		em, ok := e.(map[string]any)
 		if !ok {
@@ -2082,16 +2347,37 @@ func withAgentTools(body []byte) []byte {
 		n, _ := fn["name"].(string)
 		if canonicalNames[n] && isStubTool(fn) {
 			delete(have, n) // drop the stub: the canonical definition is appended below
+			dropped = append(dropped, n)
 			continue
 		}
 		kept = append(kept, e)
 	}
 	arr = kept
+	// Backfill only up to the gate minimum. Appending read+bash to a client that
+	// ALREADY declared its own two tools advertises functions that client never
+	// declared: the model calls them (a scout told "run bash" obeys the schema),
+	// the gateway correctly refuses the undeclared call, and the agent turn ends
+	// as an empty stop that OMP retries to its cap (measured 2026-11-20).
+	// A request that already carries two tools needs no help from us.
+	//
+	// A stub that was dropped above ALWAYS comes back as the canonical
+	// definition, even when the client had two other tools: the stub was its
+	// own declaration (read/bash), and dropping it without restoring left a
+	// client with read+glob+grep unable to open a file at all (review F4).
+	restore := map[string]bool{}
+	for _, n := range dropped {
+		restore[n] = true
+	}
 	for _, c := range canonicalOpencodeTools {
-		if !canonicalNames[c["name"].(string)] || have[c["name"].(string)] {
+		name := c["name"].(string)
+		if !canonicalNames[name] || have[name] {
 			continue
 		}
-		have[c["name"].(string)] = true
+		if !restore[name] && len(arr) >= 2 {
+			continue
+		}
+		delete(restore, name)
+		have[name] = true
 		arr = append(arr, map[string]any{
 			"type": "function",
 			"function": map[string]any{

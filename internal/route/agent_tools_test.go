@@ -81,8 +81,11 @@ func TestWithAgentToolsBackfillsCustom(t *testing.T) {
 		t.Fatal(err)
 	}
 	tools := m["tools"].([]any)
-	if len(tools) != 1+len(gateToolNames) {
-		t.Fatalf("tools len = %d, want 1+%d", len(tools), len(gateToolNames))
+	// Only enough to reach the two-tool gate minimum: backfilling BOTH canonical
+	// tools advertises a function the client never declared, and the model's
+	// call to it is refused as undeclared (empty-stop spiral).
+	if len(tools) != 2 {
+		t.Fatalf("tools len = %d, want 2 (custom + one gate tool)", len(tools))
 	}
 	fn, _ := tools[0].(map[string]any)["function"].(map[string]any)
 	if fn["name"] != "custom" {
@@ -111,8 +114,8 @@ func TestWithAgentToolsBadShapes(t *testing.T) {
 		t.Fatal(err)
 	}
 	tools, ok := m["tools"].([]any)
-	if !ok || len(tools) != 1+len(gateToolNames) {
-		t.Fatalf("tools = %v, want [42 + gate pair]", m["tools"])
+	if !ok || len(tools) != 2 {
+		t.Fatalf("tools = %v, want [42 + one gate tool]", m["tools"])
 	}
 }
 
@@ -202,4 +205,64 @@ func TestChatToolsToResponsesCanonicalForOpencode(t *testing.T) {
 		}
 	}
 	t.Fatal("no canonical read entry backfilled")
+}
+
+// A client that already declares its own two tools gets NO extra schema: the
+// appended read/bash used to be visible to the model but undeclared from the
+// client's point of view, and the gateway refused exactly those calls.
+func TestWithAgentToolsDoesNotAdvertiseUndeclaredTools(t *testing.T) {
+	body := []byte(`{"model":"deepseek-v4.1-flash-free","messages":[],"tools":[` +
+		`{"type":"function","function":{"name":"glob","parameters":{"type":"object"}}},` +
+		`{"type":"function","function":{"name":"grep","parameters":{"type":"object"}}}]}`)
+	out := withAgentTools(body)
+	var m map[string]any
+	if err := json.Unmarshal(out, &m); err != nil {
+		t.Fatal(err)
+	}
+	tools := m["tools"].([]any)
+	if len(tools) != 2 {
+		t.Fatalf("tools len = %d, want the client's 2 untouched", len(tools))
+	}
+	for _, e := range tools {
+		fn, _ := e.(map[string]any)["function"].(map[string]any)
+		if n, _ := fn["name"].(string); n == "bash" || n == "read" {
+			t.Fatalf("undeclared %q advertised: %v", n, m["tools"])
+		}
+	}
+}
+
+// A stub-shaped copy of a gate tool is dropped because the canonical definition
+// must replace it — but it must ALWAYS come back. The first capped version
+// deleted a client's own `read` and then stopped appending at two tools,
+// leaving read+glob+grep with no way to open a file (review 2026-11-20 F4).
+func TestWithAgentToolsRestoresDroppedStub(t *testing.T) {
+	body := []byte(`{"model":"deepseek-v4.1-flash-free","messages":[],"tools":[` +
+		`{"type":"function","function":{"name":"read","parameters":{"type":"object"}}},` +
+		`{"type":"function","function":{"name":"glob","parameters":{"type":"object"}}},` +
+		`{"type":"function","function":{"name":"grep","parameters":{"type":"object"}}}]}`)
+	out := withAgentTools(body)
+	var m map[string]any
+	if err := json.Unmarshal(out, &m); err != nil {
+		t.Fatal(err)
+	}
+	tools := m["tools"].([]any)
+	if len(tools) != 3 {
+		t.Fatalf("tools len = %d, want 3 (dropped read restored): %v", len(tools), m["tools"])
+	}
+	names := map[string]map[string]any{}
+	for _, e := range tools {
+		fn, _ := e.(map[string]any)["function"].(map[string]any)
+		n, _ := fn["name"].(string)
+		names[n] = fn
+	}
+	if _, ok := names["glob"]; !ok {
+		t.Fatalf("client tool glob lost: %v", names)
+	}
+	read, ok := names["read"]
+	if !ok {
+		t.Fatalf("dropped read not restored: %v", names)
+	}
+	if desc, _ := read["description"].(string); len(desc) < 40 {
+		t.Fatalf("restored read is still a stub (desc %q)", desc)
+	}
 }

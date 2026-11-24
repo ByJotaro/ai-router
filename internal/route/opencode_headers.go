@@ -187,6 +187,26 @@ func fallbackSessionFor(key string) string {
 	return id
 }
 
+// fallbackForget drops whichever egress still caches id as its synthetic
+// session. A 429 says that identity's allowance is spent, so the in-request
+// session swap must mint a NEW one: without this the swap re-picked the same
+// cached id for the whole budget (measured 2026-11-23 00:03: "session swap on
+// 429" logged the same sid at swap=1 and swap=2, then "429 past every swap"),
+// and the egress stayed walled until the 45-minute TTL expired.
+func fallbackForget(id string) {
+	if id == "" {
+		return
+	}
+	fallbackMu.Lock()
+	defer fallbackMu.Unlock()
+	for k, v := range fallbackByKey {
+		if v == id {
+			delete(fallbackByKey, k)
+			delete(fallbackAtByKey, k)
+		}
+	}
+}
+
 // descStamp serializes (millisecond, counter) exactly like identifier.ts:
 // calls within the same millisecond increment a counter living in the low
 // 12 bits of the stamped value.

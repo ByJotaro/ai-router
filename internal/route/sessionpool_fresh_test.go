@@ -65,7 +65,7 @@ func TestSessionPoolProvenLiveOutranksStaleMtime(t *testing.T) {
 	stale := "ses_stale3333333333333333333"
 	entries := []sessionEntry{
 		{id: fresh, updated: now.Add(-5 * time.Minute).UnixMilli()},
-		{id: proven, updated: now.Add(-150 * time.Hour).UnixMilli()},
+		{id: proven, updated: now.Add(-40 * 24 * time.Hour).UnixMilli()},
 		{id: stale, updated: now.Add(-30 * time.Hour).UnixMilli()},
 	}
 	sp := seedPool(t, clock, entries)
@@ -117,7 +117,7 @@ func TestSessionBurnForcesReharvest(t *testing.T) {
 }
 
 // TestSessionPoolStaleRescueBeatsGeneratedSession is the exact live shape of
-// 2026-10-22: every harvested id is older than sessionMaxAge, so selection was
+// 2026-10-22: every harvested id is older than sessionMaxAge (30 days), so selection was
 // empty and the router handed out a GENERATED session — which the free-tier gate
 // rejects on every egress (403 "can only be used from within OpenCode"). An old
 // but genuine TUI id must win over a fabricated one.
@@ -125,9 +125,9 @@ func TestSessionPoolStaleRescueBeatsGeneratedSession(t *testing.T) {
 	now := time.Now()
 	clock := &now
 	entries := []sessionEntry{
-		{id: "ses_old1aaaaaaaaaaaaaaaaaaaaa", updated: now.Add(-116 * time.Hour).UnixMilli()},
-		{id: "ses_old2bbbbbbbbbbbbbbbbbbbbb", updated: now.Add(-150 * time.Hour).UnixMilli()},
-		{id: "ses_old3ccccccccccccccccccccc", updated: now.Add(-183 * time.Hour).UnixMilli()},
+		{id: "ses_old1aaaaaaaaaaaaaaaaaaaaa", updated: now.Add(-31 * 24 * time.Hour).UnixMilli()},
+		{id: "ses_old2bbbbbbbbbbbbbbbbbbbbb", updated: now.Add(-40 * 24 * time.Hour).UnixMilli()},
+		{id: "ses_old3ccccccccccccccccccccc", updated: now.Add(-49 * 24 * time.Hour).UnixMilli()},
 	}
 	sp := seedPool(t, clock, entries)
 	got := sp.NextFor("egress-1")

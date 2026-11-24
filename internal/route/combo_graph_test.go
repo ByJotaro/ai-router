@@ -42,10 +42,10 @@ func graphRouter(t *testing.T, hits map[string]*int32) *Router {
 			hits[name] = new(int32)
 		}
 		provs[name] = &provider.Provider{
-			Name:     name,
-			Type:     "openai-compatible",
-			BaseURL:  hitUpstream(t, status, okBody, hits[name]).URL,
-			APIKeys:  []string{"k-" + name},
+			Name:    name,
+			Type:    "openai-compatible",
+			BaseURL: hitUpstream(t, status, okBody, hits[name]).URL,
+			APIKeys: []string{"k-" + name},
 		}
 	}
 	return New(provs)

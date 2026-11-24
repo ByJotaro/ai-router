@@ -30,12 +30,19 @@ func TestSessionPoolNeverSharesAcrossEgresses(t *testing.T) {
 	if got["egress-0"] == got["egress-1"] {
 		t.Fatalf("один id выдан двум egress: %s", sesPrefix(got["egress-0"]))
 	}
+	// Supply exhausted: a newcomer gets a SYNTHETIC per-egress identity
+	// (format-valid, gate accepts the shape), never a shared harvested id.
+	seen := map[string]bool{got["egress-0"]: true, got["egress-1"]: true}
 	for i := 2; i < 5; i++ {
 		key := fmt.Sprintf("egress-%d", i)
-		if id := sp.NextFor(key); id != "" {
-			t.Fatalf("при исчерпании поставки egress %s всё равно получил %s — это связка IP",
-				key, sesPrefix(id))
+		id := sp.NextFor(key)
+		if id == "" {
+			t.Fatalf("при исчерпании поставки egress %s остался без синтетической сессии", key)
 		}
+		if seen[id] {
+			t.Fatalf("один id выдан двум egress: %s — это связка IP", sesPrefix(id))
+		}
+		seen[id] = true
 	}
 	if n := sp.LiveCount(); n != 2 {
 		t.Fatalf("LiveCount=%d, хочу 2", n)
@@ -55,9 +62,10 @@ func TestSessionPoolReclaimsSilentEgressPin(t *testing.T) {
 	if first == "" {
 		t.Fatal("первый egress остался без сессии")
 	}
-	// The newcomer arrives while the old egress is still fresh -> no id.
-	if id := sp.NextFor("egress-new"); id != "" {
-		t.Fatalf("id выдан второму ЖИВОМУ egress: %s", sesPrefix(id))
+	// The newcomer arrives while the old egress is still fresh: it must NOT
+	// receive the pinned id (cross-IP link), but a synthetic identity is fine.
+	if id := sp.NextFor("egress-new"); id == "" || id == first {
+		t.Fatalf("новый egress получил пустой или чужой id: %q", sesPrefix(id))
 	}
 	now = now.Add(sessionPinIdle + time.Minute)
 	id := sp.NextFor("egress-new")
@@ -100,8 +108,10 @@ func TestSessionPoolReclaimRespectsCooldown(t *testing.T) {
 	}
 	sp.ReleaseEgress("egress-a")   // ban: id retired, now unused
 	now = now.Add(5 * time.Minute) // внутри sessionReuseCooldown (10 min)
-	if id := sp.NextFor("egress-b"); id != "" {
-		t.Fatalf("id после бана ушёл на другой IP внутри кулдауна: %s", sesPrefix(id))
+	// Inside the cooldown the BURNED harvested id must not reappear; a
+	// per-egress synthetic identity for the new egress is fine.
+	if id := sp.NextFor("egress-b"); id == "ses_burnedaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("сожжённый id ушёл на другой IP внутри кулдауна: %s", sesPrefix(id))
 	}
 	now = now.Add(sessionReuseCooldown + time.Minute)
 	if id := sp.NextFor("egress-b"); id == "" {

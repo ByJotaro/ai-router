@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -479,5 +480,269 @@ func TestGatewayKeepaliveDoesNotResetIdle(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "gateway_timeout") {
 		t.Fatalf("keepalive-only стрим обязан быть срезан по idle, body=%q", body)
+	}
+}
+
+// TestRetryAfterEmptyKeepsAgentShape: an agent turn (the client declared
+// tools) keeps its tool list on the retry and gains exactly one "execute now"
+// user turn. The old path sent forcedAnswerBody, which dropped the tool list
+// and asked for "the final answer as plain text": the model then abandoned
+// tool calls and wrote prose that stopped mid-sentence, while the client
+// recorded a clean stop (the 2026-11-19 OMP cut, reproduced 2026-11-20 from a
+// MITM dump of the retry). A byte-identical retry reproduced the same
+// think-only reply instead (subagents "stopped at a plan"), hence the nudge.
+func TestRetryAfterEmptyKeepsAgentShape(t *testing.T) {
+	body := []byte(`{"model":"m1","stream":true,"max_tokens":4000,"reasoning_effort":"max",` +
+		`"messages":[{"role":"user","content":"hi"}],` +
+		`"tools":[{"type":"function","function":{"name":"edit","parameters":{"type":"object"}}}]}`)
+	out := retryBodyAfterEmpty(body)
+	var doc struct {
+		Tools    []json.RawMessage `json:"tools"`
+		Messages []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(doc.Tools) != 1 {
+		t.Fatalf("agent tools dropped: %s", out)
+	}
+	if len(doc.Messages) != 2 || doc.Messages[1].Role != "user" {
+		t.Fatalf("execute-now nudge missing: %s", out)
+	}
+}
+
+// TestRetryAfterEmptyChatNudgesWithoutLoweringReasoning: a plain chat turn
+// still gets the explicit "answer now" instruction, but the reasoning depth
+// must survive untouched — answers are never silently made shallower.
+func TestRetryAfterEmptyChatNudgesWithoutLoweringReasoning(t *testing.T) {
+	body := []byte(`{"model":"m1","stream":true,"reasoning_effort":"max",` +
+		`"reasoning":{"effort":"max","budget_tokens":32768},` +
+		`"messages":[{"role":"user","content":"hi"}]}`)
+	var m map[string]any
+	if err := json.Unmarshal(retryBodyAfterEmpty(body), &m); err != nil {
+		t.Fatal(err)
+	}
+	msgs, _ := m["messages"].([]any)
+	if len(msgs) != 2 {
+		t.Fatalf("nudge message missing: %v", m["messages"])
+	}
+	if got, _ := m["reasoning_effort"].(string); got != "max" {
+		t.Fatalf("reasoning_effort=%q, want max (no downgrade)", got)
+	}
+	if r, _ := m["reasoning"].(map[string]any); r == nil || r["effort"] != "max" {
+		t.Fatalf("reasoning=%v, want effort max", m["reasoning"])
+	}
+}
+
+// TestReasoningPolicyNeverLowersClient: the operator setting is a floor. A
+// client that asked for max keeps max when the panel says low — the policy
+// may only raise the level.
+func TestReasoningPolicyNeverLowersClient(t *testing.T) {
+	up := fakeUpstream(t, func(w http.ResponseWriter, r *http.Request) {})
+	p := &provider.Provider{
+		Name: "p", Type: "openai-compatible", BaseURL: up.URL,
+		APIKeys: []string{"upkey"}, Models: []string{"m1"},
+		ModelReasoning: map[string]string{"m1": "low"},
+	}
+	s, _ := newTestGateway(t, map[string]*provider.Provider{"p": p}, nil)
+	body := []byte(`{"model":"m1","reasoning_effort":"max","messages":[{"role":"user","content":"hi"}]}`)
+	var m map[string]any
+	if err := json.Unmarshal(s.applyReasoningPolicy(body, "m1"), &m); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := m["reasoning_effort"].(string); got != "max" {
+		t.Fatalf("policy lowered client reasoning to %q, want max", got)
+	}
+}
+
+// TestEffortRankOrdersLadder pins the ordering the floor rule depends on.
+func TestEffortRankOrdersLadder(t *testing.T) {
+	order := []string{"none", "low", "medium", "high", "xhigh", "max"}
+	for i := 1; i < len(order); i++ {
+		if effortRank(order[i]) <= effortRank(order[i-1]) {
+			t.Fatalf("%s must outrank %s", order[i], order[i-1])
+		}
+	}
+	if effortRank("") != 0 || effortRank("bogus") != 0 {
+		t.Fatal("unknown effort must rank lowest")
+	}
+}
+
+// TestThinkOnlyRetryKeepsAgentTools is the regression for the 2026-11-19 OMP
+// turn "у меня нет доступного вызова task": when the first attempt emitted
+// only reasoning, the gateway retried with forcedAnswerBody, which emptied the
+// tool list (backfilled to read+bash only) and told the model to answer in
+// plain text. The model then reported tools it could not see and produced a
+// prose answer that stopped mid-sentence. Every forwarded attempt of an agent
+// turn must carry the client's tools (task included) and no synthetic turn.
+func TestThinkOnlyRetryKeepsAgentTools(t *testing.T) {
+	var mu sync.Mutex
+	var bodies []map[string]any
+	up := fakeUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		mu.Lock()
+		bodies = append(bodies, req)
+		n := len(bodies)
+		mu.Unlock()
+		w.Header().Set("Content-Type", "text/event-stream")
+		if n <= 2 { // first attempts: reasoning only, no content, no finish
+			_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"thinking\"}}]}\n\n")
+			_, _ = io.WriteString(w, "data: [DONE]\n\n")
+			return
+		}
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	})
+	p := &provider.Provider{
+		Name: "p", Type: "openai-compatible", BaseURL: up.URL,
+		APIKeys: []string{"upkey"}, Models: []string{"m1"},
+	}
+	_, srv := newTestGateway(t, map[string]*provider.Provider{"p": p}, []config.KeyConf{vk("vkey")})
+	var tools []any
+	for _, n := range []string{"task", "bash", "read", "write", "edit", "grep", "glob", "todo", "wait"} {
+		tools = append(tools, map[string]any{
+			"type":     "function",
+			"function": map[string]any{"name": n, "parameters": map[string]any{"type": "object"}},
+		})
+	}
+	res, body := doReq(t, srv.URL, "/v1/chat/completions", "POST", "vkey", map[string]any{
+		"model": "m1", "stream": true, "reasoning_effort": "max", "max_tokens": 4096,
+		"messages": []any{
+			map[string]any{"role": "system", "content": "sys"},
+			map[string]any{"role": "user", "content": "запусти 15 агентов"},
+		},
+		"tools": tools,
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", res.StatusCode, body)
+	}
+	mu.Lock()
+	got := append([]map[string]any(nil), bodies...)
+	mu.Unlock()
+	if len(got) < 2 {
+		t.Fatalf("retry did not happen: %d upstream calls", len(got))
+	}
+	for i, b := range got {
+		arr, _ := b["tools"].([]any)
+		names := map[string]bool{}
+		for _, e := range arr {
+			if em, ok := e.(map[string]any); ok {
+				if fn, ok := em["function"].(map[string]any); ok {
+					if n, ok := fn["name"].(string); ok {
+						names[n] = true
+					}
+				}
+			}
+		}
+		if !names["task"] {
+			t.Fatalf("attempt %d reached upstream without the task tool (tools=%v)", i+1, names)
+		}
+		// Attempt 1 is the client's body untouched; the think-only retry adds
+		// exactly one "execute now" user turn — the model must be told to act,
+		// not handed its own plan back (2026-11-20 subagent stall).
+		msgs, _ := b["messages"].([]any)
+		want := 2
+		if i > 0 {
+			want = 3
+		}
+		if len(msgs) != want {
+			t.Fatalf("attempt %d has %d messages, want %d", i+1, len(msgs), want)
+		}
+		if eff, _ := b["reasoning_effort"].(string); eff != "max" {
+			t.Fatalf("attempt %d reasoning_effort=%q, want max", i+1, eff)
+		}
+		if mt, ok := b["max_tokens"].(float64); !ok || mt != 4096 {
+			t.Fatalf("attempt %d max_tokens=%v, want 4096", i+1, b["max_tokens"])
+		}
+	}
+}
+
+// fillReasoningAsAnswer must touch only a genuinely empty answer. A content
+// array (multimodal/structured blocks) is real output: replacing it with the
+// reasoning prose silently rewrote the reply.
+func TestFillReasoningAsAnswerKeepsContentBlocks(t *testing.T) {
+	in := []byte(`{"choices":[{"message":{"role":"assistant","content":[{"type":"text","text":"answer"}],"reasoning_content":"thought"}}]}`)
+	out := fillReasoningAsAnswer(in)
+	if string(out) != string(in) {
+		t.Fatalf("content blocks were overwritten: %s", out)
+	}
+	empty := []byte(`{"choices":[{"message":{"role":"assistant","content":"","reasoning_content":"thought"}}]}`)
+	filled := fillReasoningAsAnswer(empty)
+	if !strings.Contains(string(filled), `"content":"thought"`) {
+		t.Fatalf("empty answer must be filled from reasoning: %s", filled)
+	}
+}
+
+// A tool-call body legitimately carries content:null; overwriting it with the
+// reasoning prose made the client render internal thinking as the assistant's
+// visible answer next to the call (review 2026-11-20 F3).
+func TestFillReasoningAsAnswerKeepsToolCallBodies(t *testing.T) {
+	in := []byte(`{"choices":[{"message":{"role":"assistant","content":null,"reasoning_content":"thought","tool_calls":[{"id":"t","type":"function","function":{"name":"read","arguments":"{}"}}]}}]}`)
+	if out := fillReasoningAsAnswer(in); string(out) != string(in) {
+		t.Fatalf("tool-call body was rewritten: %s", out)
+	}
+}
+
+// When the think-only retry itself fails (429/503 on a free lane), headers are
+// already on the wire. The body must still end with a verdict and [DONE];
+// otherwise the client waits on an open stream until its own timeout
+// (measured 183 s "think-only retry failed after stream started").
+func TestThinkOnlyRetryFailureClosesStream(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	up := fakeUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		calls++
+		n := calls
+		mu.Unlock()
+		if n == 1 {
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"thinking\"}}]}\n\n")
+			_, _ = io.WriteString(w, "data: [DONE]\n\n")
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, `{"error":{"message":"upstream down"}}`)
+	})
+	p := &provider.Provider{
+		Name: "p", Type: "openai-compatible", BaseURL: up.URL,
+		APIKeys: []string{"upkey"}, Models: []string{"m1"},
+	}
+	_, srv := newTestGateway(t, map[string]*provider.Provider{"p": p}, []config.KeyConf{vk("vkey")})
+	res, body := doReq(t, srv.URL, "/v1/chat/completions", "POST", "vkey", map[string]any{
+		"model": "m1", "stream": true, "max_tokens": 4096,
+		"messages": []any{map[string]any{"role": "user", "content": "hi"}},
+	})
+	text := string(body)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d: %s", res.StatusCode, text)
+	}
+	if !strings.Contains(text, `"upstream_retry_failed"`) || !strings.Contains(text, "[DONE]") {
+		t.Fatalf("failed retry must be relayed as an error event and closed: %q", text)
+	}
+}
+
+// The router accepts the flat responses tool shape ({"type":"function",
+// "name":...}), so the filter must read it too: a flat-shaped agent body used
+// to parse to an empty set, silently dropping every declared call (review
+// 2026-11-20 F4). An unknown shape with tools present fails OPEN, never to an
+// empty set.
+func TestDeclaredToolNamesFlatAndFailOpen(t *testing.T) {
+	flat := []byte(`{"model":"m","tools":[{"type":"function","name":"read"}]}`)
+	set := declaredToolNames(flat)
+	if !set["read"] {
+		t.Fatalf("flat tool name not parsed: %v", set)
+	}
+	unknown := []byte(`{"model":"m","tools":[{"weird":{"shape":true}}]}`)
+	if got := declaredToolNames(unknown); got != nil {
+		t.Fatalf("unknown tool shape must fail open (nil), got %v", got)
+	}
+	if got := declaredToolNames([]byte(`{"model":"m"}`)); got == nil || len(got) != 0 {
+		t.Fatalf("tool-less body must stay an empty non-nil set, got %v", got)
 	}
 }

@@ -30,7 +30,7 @@ func fakeChatUpstream(t *testing.T) *provider.Provider {
 				"id": "chatcmpl-e2e", "object": "chat.completion", "created": 1700000000, "model": req["model"],
 				"choices": []any{map[string]any{"index": 0, "message": map[string]any{"role": "assistant", "content": "hello"}, "finish_reason": "stop"}},
 				"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 3, "total_tokens": 13,
-					"prompt_tokens_details":      map[string]any{"cached_tokens": 4},
+					"prompt_tokens_details":     map[string]any{"cached_tokens": 4},
 					"completion_tokens_details": map[string]any{"reasoning_tokens": 7}},
 			})
 			return

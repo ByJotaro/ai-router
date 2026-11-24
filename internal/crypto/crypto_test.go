@@ -94,7 +94,7 @@ func TestSafeError(t *testing.T) {
 		t.Errorf("SafeError empty = %q", got)
 	}
 	want := "auth failed: [redacted] invalid"
-	if got := SafeError("auth failed: Bearer sk-abcdef1234567890 invalid"); got != want {
+	if got := SafeError("auth failed: Bearer sk-abcdef123456789 invalid"); got != want {
 		t.Errorf("SafeError = %q, want %q", got, want)
 	}
 	long := SafeError(strings.Repeat("a", 400))

@@ -184,6 +184,7 @@
             '<button type="button" class="c8-b prim" data-c8="test" title="Живой тест «' + esc(tm || "модель не выбрана") + '»">▶ тест</button>' +
             '<button type="button" class="c8-b" data-c8="addkey" title="Добавить ключ в пул">+ ключ</button>' +
             '<button type="button" class="c8-b" data-c8="addmodel" title="Добавить модель в каталог">+ модель</button>' +
+            (e.name === "deepai-code" ? '<button type="button" class="c8-b" data-c8="deepai" title="Войти через Google/Apple и добавить api-key"><svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" style="vertical-align:-1px"><path d="M8 1v4M8 11v4M1 8h4M11 8h4" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="8" cy="8" r="2.2" fill="currentColor"/></svg> вход</button>' : "") +
           '</div>' +
         '</div>' +
         '<div class="c8-id2">' +
@@ -1388,6 +1389,15 @@
       }
       if (act === "url" || act === "copyurl") { ev.preventDefault(); try { copyTo(e.base_url || ""); } catch (x) {} return; }
       if (act === "addkey") { ev.preventDefault(); ST.add = "key"; ST.screen = 1; render(e, true); return; }
+      if (act === "deepai") {
+        ev.preventDefault();
+        toast("Открываю окно входа DeepAI…", "ok");
+        API.DeepAILogin(e.name).then(function (r) {
+          toast(r && r.message ? r.message : (r && r.ok ? "ключ добавлен" : "вход не завершён"), r && r.ok ? "ok" : "err");
+          try { loadProviders(); } catch (x) {}
+        }).catch(function (x) { toast("DeepAI: " + (x && x.message || x), "err"); });
+        return;
+      }
       if (act === "addmodel") { ev.preventDefault(); ST.add = "model"; ST.screen = 2; render(e, true); return; }
       if (act === "addgo") { ev.preventDefault(); commitAdd(); return; }
       if (act === "addcancel") { ev.preventDefault(); ST.add = ""; render(e, true); return; }

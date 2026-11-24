@@ -368,6 +368,7 @@ function renderProxy(host) {
   if (!root) return;
   w01ProxyWire();
   w01ProxyDraw();
+  if (typeof w01BypassLoad === "function") w01BypassLoad();
 }
 
 /* ---------- отзывчивость: пересчёт полотна при смене ширины ---------- */

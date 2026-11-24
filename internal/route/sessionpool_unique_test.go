@@ -77,8 +77,11 @@ func TestNextForRefusesSharingWhenHarvestNarrow(t *testing.T) {
 	if first == "" {
 		t.Fatal("первый egress остался без сессии при живой поставке")
 	}
-	if second := sp.NextFor("egress-a"); second != "" {
-		t.Fatalf("второму ЖИВОМУ egress выдан id %s — это связка IP", sesPrefix(second))
+	// Supply exhaustion mints a per-egress synthetic id (2026-11-22) instead
+	// of answering "": refusing the egress was the 50-agent starvation. The
+	// forbidden thing is SHARING one id, not having an identity.
+	if second := sp.NextFor("egress-a"); second == first {
+		t.Fatalf("второму ЖИВОМУ egress выдан тот же id %s — это связка IP", sesPrefix(second))
 	}
 	// Same egress asks again: still its own id (stability until death/ban).
 	if again := sp.NextFor("egress-b"); again != first {

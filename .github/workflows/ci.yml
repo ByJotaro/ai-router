@@ -9,10 +9,6 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    env:
-      GOMODCACHE: D:/gomod
-      GOCACHE: D:/gocache
-      GOTMPDIR: D:/gotmp
     steps:
       - uses: actions/checkout@v4
 
@@ -25,7 +21,12 @@ jobs:
         shell: pwsh
 
       - name: Create Go cache dirs
-        run: New-Item -ItemType Directory -Force -Path D:/gomod, D:/gocache, D:/gotmp | Out-Null
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'go'
+          New-Item -ItemType Directory -Force -Path "$root\mod", "$root\cache", "$root\tmp" | Out-Null
+          "GOMODCACHE=$root\mod" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "GOCACHE=$root\cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "GOTMPDIR=$root\tmp" | Out-File -FilePath $env:GITHUB_ENV -Append
         shell: pwsh
 
       - name: Set up Go 1.24

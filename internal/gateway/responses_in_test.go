@@ -69,11 +69,11 @@ func TestResponsesInToChatItemsAndTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	var chat struct {
-		Messages []map[string]any `json:"messages"`
-		Tools    []map[string]any `json:"tools"`
-		ToolChoice any            `json:"tool_choice"`
-		ReEff    string           `json:"reasoning_effort"`
-		Reason   map[string]any   `json:"reasoning"`
+		Messages   []map[string]any `json:"messages"`
+		Tools      []map[string]any `json:"tools"`
+		ToolChoice any              `json:"tool_choice"`
+		ReEff      string           `json:"reasoning_effort"`
+		Reason     map[string]any   `json:"reasoning"`
 	}
 	if err := json.Unmarshal(out, &chat); err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestTranscodeChatSSEToResponsesEvents(t *testing.T) {
 	chatSSE := "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"Hi\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\" there\"}}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":2,\"total_tokens\":7,\"completion_tokens_details\":{\"reasoning_tokens\":1}}}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
 	in := &responsesIn{Model: "m"}
 	rec := httptest.NewRecorder()
-	usage := transcodeChatSSEToResponses(rec, bytes.NewBufferString(chatSSE), in)
+	usage := transcodeChatSSEToResponses(rec, bytes.NewBufferString(chatSSE), in, nil)
 	res := rec.Result()
 	body, _ := io.ReadAll(res.Body)
 	s := string(body)
@@ -205,4 +205,36 @@ func TestTranscodeChatSSEToResponsesEvents(t *testing.T) {
 	_ = config.KeyConf{}
 	_ = provider.Provider{}
 	_ = http.StatusOK
+}
+
+// The Responses relay must obey the declared-name contract: an invented call
+// is dropped with its argument fragments, never surfaced as function_call.
+func TestTranscodeDropsUndeclaredCall(t *testing.T) {
+	chatSSE := "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"function\":{\"name\":\"add_numbers\",\"arguments\":\"{\\\"a\\\":1}\"}}]}}]}\n\n" +
+		"data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n"
+	in := &responsesIn{Model: "m"}
+	rec := httptest.NewRecorder()
+	transcodeChatSSEToResponses(rec, bytes.NewBufferString(chatSSE), in, map[string]bool{"get_time": true})
+	s := rec.Body.String()
+	if strings.Contains(s, "add_numbers") || strings.Contains(s, "function_call") {
+		t.Fatalf("undeclared call surfaced:\n%s", s)
+	}
+}
+
+// Fragments that arrive before the name are held; a declared name releases
+// them, so ordering changes never lose arguments.
+func TestTranscodeHoldsArgsUntilName(t *testing.T) {
+	chatSSE := "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"function\":{\"arguments\":\"{\\\"a\\\":1\"}}]}}]}\n\n" +
+		"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"get_time\",\"arguments\":\"}\"}}]}}]}\n\n" +
+		"data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n"
+	in := &responsesIn{Model: "m"}
+	rec := httptest.NewRecorder()
+	transcodeChatSSEToResponses(rec, bytes.NewBufferString(chatSSE), in, map[string]bool{"get_time": true})
+	s := rec.Body.String()
+	if !strings.Contains(s, "get_time") {
+		t.Fatalf("declared call lost:\n%s", s)
+	}
+	if !strings.Contains(s, `"arguments":"{\"a\":1}"`) {
+		t.Fatalf("held arguments lost or reordered:\n%s", s)
+	}
 }

@@ -110,6 +110,15 @@ type directProviderTransport struct {
 
 func (t *directProviderTransport) Name() string { return "direct" }
 
+// selfRotatingTransport marks an inner transport as sweeping egresses itself, so
+// the router never multiplies its attempts. The sidecar walks 50+ lanes per
+// request; letting the router retry 4x turned one walled turn into ~28 s.
+type selfRotatingTransport struct{ TransportProvider }
+
+func (selfRotatingTransport) SelfRotating() bool { return true }
+
+func (selfRotatingTransport) Name() string { return "self-rotating" }
+
 func (t *directProviderTransport) Acquire(_ context.Context, _ RequestContext, _ *provider.Provider) (*Lease, error) {
 	return &Lease{Client: t.client, Proxy: ""}, nil
 }
@@ -197,10 +206,14 @@ func poolTransport(cfg *config.Config) TransportProvider {
 			// pool. Without this the group errors "no transport for
 			// provider" for every non-pool provider once any provider
 			// declares pool mode (2026-10-13: local bridges unreachable).
-			group.byProv[name] = newDirectProviderTransport(p.TimeoutS)
+			inner := TransportProvider(newDirectProviderTransport(p.TimeoutS))
+			if p.Transport.SelfRotating {
+				inner = selfRotatingTransport{inner}
+			}
+			group.byProv[name] = inner
 			continue
 		}
-		if p.Transport.Mode != "pool" {
+		if p.Transport.Mode != "pool" && p.Transport.Mode != "cli" {
 			continue
 		}
 		pt := &PoolTransport{
@@ -233,6 +246,14 @@ func poolTransport(cfg *config.Config) TransportProvider {
 			StateFile: config.PoolStatePathFor(cfg.Server.Port, name),
 		}
 		loadPoolState(pt, config.PoolStatePathFor(0, name))
+		if p.Transport.Mode == "cli" {
+			// In-process opencode CLI wire format: the same pool egress, the
+			// captured ClientHello and raw header bytes, no sidecar hop.
+			tr := NewCLITransport(p.Transport.APIURL, p.Transport.Token, p.Transport.CLIUpstream, time.Duration(p.TimeoutS)*time.Second, strconv.Itoa(cfg.Server.Port), p.Transport.WideState, p.Transport.WideTraces)
+			tr.startParkRedraw()
+			group.byProv[name] = tr
+			continue
+		}
 		group.byProv[name] = pt
 		pt.startRotatePolicy()
 	}

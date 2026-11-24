@@ -134,6 +134,72 @@ func Test429ExhaustsAllKeys(t *testing.T) {
 	}
 }
 
+// A terminal upstream error must name the egress it died on: the gateway
+// builds the journal event with res=nil, so without this field every failure
+// row logged proxy=” and an unpinned key was indistinguishable from a dead
+// lane (advisor audit 2026-11-16).
+func TestForbiddenCarriesLastEgress(t *testing.T) {
+	// Hermetic lane: p.Egress is a real HTTP proxy for the request, so a live
+	// 127.0.0.1:875x lane would make the test depend on warp-router health.
+	lane := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(403)
+		_, _ = w.Write([]byte(`{"error":{"type":"region_error"}}`))
+	}))
+	defer lane.Close()
+	r := New(map[string]*provider.Provider{
+		"a": {Name: "a", Type: "openai-compatible", BaseURL: "http://upstream.invalid",
+			APIKeys: []string{"k1"}, Egress: lane.URL,
+			ErrorPolicy: map[string]string{"403": "retry"}},
+	})
+	_, err := r.Call(context.Background(), "a/m", []byte(`{"model":"m"}`), false)
+	var use *UpstreamStatusError
+	if !errors.As(err, &use) {
+		t.Fatalf("want UpstreamStatusError, got %v", err)
+	}
+	if use.Proxy != lane.URL {
+		t.Fatalf("proxy not carried: %q", use.Proxy)
+	}
+	if use.Attempts < 1 {
+		t.Fatalf("attempts not recorded: %d", use.Attempts)
+	}
+}
+
+// A marker 403 must park the key that hit it: without the park, every later
+// request starts on the same restricted lane and pays an extra full body
+// upload per hop (advisor 2026-11-16).
+func TestForbiddenParksKeyPinnedToDeadExit(t *testing.T) {
+	var hits []string
+	lane := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		hits = append(hits, auth)
+		if strings.Contains(auth, "k1") {
+			w.WriteHeader(403)
+			_, _ = w.Write([]byte(`{"error":{"type":"region_error","message":"blocked"}}`))
+			return
+		}
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"id":"ok","choices":[]}`))
+	}))
+	defer lane.Close()
+	r := New(map[string]*provider.Provider{
+		"a": {Name: "a", Type: "openai-compatible", BaseURL: "http://upstream.invalid",
+			APIKeys:     []string{"k1", "k2"},
+			Egress:      lane.URL,
+			ErrorPolicy: map[string]string{"403": "retry"}},
+	})
+	if _, err := r.Call(context.Background(), "a/m", []byte(`{"model":"m"}`), false); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	mark := len(hits)
+	if _, err := r.Call(context.Background(), "a/m", []byte(`{"model":"m"}`), false); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+	second := hits[mark:]
+	if len(second) != 1 || !strings.Contains(second[0], "k2") {
+		t.Fatalf("parked key reused: %v (first call hit %v)", second, hits[:mark])
+	}
+}
+
 func TestWildcardProviderServesAnyModel(t *testing.T) {
 	srv := fakeUpstream(t, 200, `{"id":"ok","choices":[]}`)
 	defer srv.Close()

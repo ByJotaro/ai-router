@@ -4,19 +4,21 @@
 package main
 
 import (
-	"maps"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/ByJotaro/ai-router/internal/gateway"
 	"github.com/ByJotaro/ai-router/internal/gui"
 	"github.com/ByJotaro/ai-router/internal/hubmod"
+	"github.com/ByJotaro/ai-router/internal/keyfeed"
 	"github.com/ByJotaro/ai-router/internal/keys"
 	"github.com/ByJotaro/ai-router/internal/lockout"
 	"github.com/ByJotaro/ai-router/internal/logring"
@@ -346,7 +349,106 @@ func logger(level string) *slog.Logger {
 	default:
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))
+	// The daemon is also started by hand (GUI, taskbar, HKCU Run). Without a
+	// file sink those starts lose every request line: on 2026-11-20 the live
+	// process wrote no log at all, the 429 watchdog read a stale file and the
+	// "everything is 429" waves were invisible. The file is the primary record
+	// and always keeps at least INFO (request/resp/watchdog lines) even when
+	// the console level is warn; stderr stays for the console/task redirect.
+	var h slog.Handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})
+	if f := openDaemonLog(); f != nil {
+		fileLvl := lvl
+		if fileLvl > slog.LevelInfo {
+			fileLvl = slog.LevelInfo
+		}
+		h = teeHandler{
+			console: slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}),
+			file:    slog.NewTextHandler(f, &slog.HandlerOptions{Level: fileLvl}),
+		}
+	}
+	l := slog.New(h)
+	// The gateway logs req/resp through slog.Default(), so the process default
+	// must point at the same sink; otherwise the request lines land only in the
+	// task's stderr redirect and vanish on a manual start (measured 2026-11-20:
+	// the 429 watchdog saw a stale file while the live daemon ran).
+	slog.SetDefault(l)
+	return l
+}
+
+// rotatingFile appends to one file and rotates it to .1 once it crosses the
+// limit. Rotation lives on the WRITE path because the daemon holds the file
+// open: checking only at startup left router.log unbounded for a long-running
+// process, and on POSIX the old rename-while-open split the writes so
+// router.log held only the newest process's lines (review 2026-11-20 F2).
+type rotatingFile struct {
+	mu     sync.Mutex
+	f      *os.File
+	path   string
+	size   int64
+	limit  int64
+	warned bool
+}
+
+func openRotatingFile(path string, limit int64) *rotatingFile {
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	if fi, err := os.Stat(path); err == nil && fi.Size() > limit {
+		_ = os.Rename(path, path+".1")
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil
+	}
+	r := &rotatingFile{f: f, path: path, limit: limit}
+	if fi, err := f.Stat(); err == nil {
+		r.size = fi.Size()
+	}
+	return r
+}
+
+// Write never fails a log line: a rotation or reopen problem is reported once
+// on stderr — logging it through slog inside the writer would recurse into the
+// same handler.
+func (r *rotatingFile) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.f == nil {
+		return len(p), nil
+	}
+	n, err := r.f.Write(p)
+	r.size += int64(n)
+	if r.size < r.limit {
+		return n, err
+	}
+	_ = r.f.Close()
+	r.f = nil
+	renamed := os.Rename(r.path, r.path+".1") == nil
+	if !renamed && !r.warned {
+		r.warned = true
+		fmt.Fprintf(os.Stderr, "ai-router: log rotation failed (another instance holds %s?); appending in place\n", r.path)
+	}
+	f, oerr := os.OpenFile(r.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if oerr != nil {
+		fmt.Fprintf(os.Stderr, "ai-router: log reopen failed: %v\n", oerr)
+		return n, err
+	}
+	r.f = f
+	r.size = 0
+	if !renamed {
+		if fi, serr := f.Stat(); serr == nil {
+			r.size = fi.Size()
+		}
+	}
+	return n, err
+}
+
+// openDaemonLog appends to <base>/router.log, rotating to .1 at 64 MiB. A log
+// failure never blocks the daemon: it just stays stderr-only.
+func openDaemonLog() io.Writer {
+	rf := openRotatingFile(filepath.Join(config.BaseDir(), "router.log"), 64<<20)
+	if rf == nil {
+		return nil
+	}
+	return rf
 }
 
 // buildComponents resolves providers (skipping broken ones), loads keys and
@@ -543,6 +645,9 @@ func runDaemon(cfgPath string, egressForce bool, headless bool, noAuto bool, min
 		log.Info("autostart", "enabled", cfg.AutoStart)
 	}
 	router, ks, st := buildComponents(cfg, log)
+	// Append-only key feeds (autoreg farms): fresh keys join the live pool
+	// within seconds, no daemon restart.
+	keyfeed.Start(cfgPath, router, log)
 	ring := logring.New(1000)
 
 	gopts := []gateway.Option{
@@ -592,10 +697,10 @@ func runDaemon(cfgPath string, egressForce bool, headless bool, noAuto bool, min
 		var hubPool *proxypool.Client
 		if cfg.Egress.Enabled && cfg.Egress.BaseURL != "" {
 			hubPool = proxypool.New(proxypool.Config{
-				BaseURL:    cfg.Egress.BaseURL,
-				Token:      cfg.Egress.Token,
-				Strategy:   cfg.Egress.Strategy,
-				PerRequest: cfg.Egress.Rotation.PerRequest,
+				BaseURL:     cfg.Egress.BaseURL,
+				Token:       cfg.Egress.Token,
+				Strategy:    cfg.Egress.Strategy,
+				PerRequest:  cfg.Egress.Rotation.PerRequest,
 				RotateAfter: cfg.Egress.Rotation.RotateAfter,
 			})
 		}
@@ -846,9 +951,9 @@ func cmdConfigShow(cfgPath string, jsonOut bool) {
 	}
 	masked["providers"] = maskedProviders
 	masked["egress"] = map[string]any{
-		"enabled": cfg.Egress.Enabled,
+		"enabled":  cfg.Egress.Enabled,
 		"base_url": cfg.Egress.BaseURL,
-		"token":   maskTokenShort(cfg.Egress.Token),
+		"token":    maskTokenShort(cfg.Egress.Token),
 	}
 	if jsonOut {
 		enc := json.NewEncoder(os.Stdout)
@@ -1022,4 +1127,33 @@ func truncate(s string, n int) string {
 func fatal(what string, err error) {
 	fmt.Fprintf(os.Stderr, "ai-router: %s: %v\n", what, err)
 	os.Exit(1)
+}
+
+// teeHandler sends a record to two sinks with independent levels: the file
+// keeps INFO request lines while the console honours the configured level.
+type teeHandler struct {
+	console slog.Handler
+	file    slog.Handler
+}
+
+func (t teeHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return t.console.Enabled(ctx, level) || t.file.Enabled(ctx, level)
+}
+
+func (t teeHandler) Handle(ctx context.Context, r slog.Record) error {
+	if t.console.Enabled(ctx, r.Level) {
+		_ = t.console.Handle(ctx, r)
+	}
+	if t.file.Enabled(ctx, r.Level) {
+		_ = t.file.Handle(ctx, r.Clone())
+	}
+	return nil
+}
+
+func (t teeHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return teeHandler{console: t.console.WithAttrs(attrs), file: t.file.WithAttrs(attrs)}
+}
+
+func (t teeHandler) WithGroup(name string) slog.Handler {
+	return teeHandler{console: t.console.WithGroup(name), file: t.file.WithGroup(name)}
 }

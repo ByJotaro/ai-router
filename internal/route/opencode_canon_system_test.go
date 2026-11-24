@@ -133,3 +133,22 @@ func TestFallbackSessionPerEgress(t *testing.T) {
 		t.Fatalf("empty key produced shared fallback session %q", got)
 	}
 }
+
+// A 429 releases the spent identity: the same egress must mint a NEW synthetic
+// session instead of re-shipping the released one (the in-request swap used to
+// re-pick it, so the retry loop was a no-op until the 45-minute TTL expired).
+func TestReleaseRotatesFallbackSession(t *testing.T) {
+	const key = "ip-release-rotate"
+	id1 := fallbackSessionFor(key)
+	if id1 == "" {
+		t.Fatal("no synthetic session for egress")
+	}
+	getSessionPool().Release(id1)
+	id2 := fallbackSessionFor(key)
+	if id2 == id1 {
+		t.Fatalf("Release kept synthetic session %q for the same egress", sesPrefix(id1))
+	}
+	if len(id2) != len(id1) || !strings.HasPrefix(id2, "ses_") {
+		t.Fatalf("replacement session malformed: %q", id2)
+	}
+}

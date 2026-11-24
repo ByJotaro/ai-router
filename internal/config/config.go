@@ -14,19 +14,19 @@ import (
 
 // Config is ai-router's YAML configuration.
 type Config struct {
-	Server      ServerConfig            `yaml:"server"`
-	AdminToken  string                  `yaml:"admin_token"`
-	Hub         HubConfig               `yaml:"hub"`
-	Providers   map[string]ProviderConf `yaml:"providers"`
-	ProvidersOrder []string             `yaml:"-"` // declaration order from YAML; empty -> sorted fallback
-	Keys        []KeyConf               `yaml:"keys"`
-	Resilience  ResilienceConfig        `yaml:"resilience"`
-	Routing     RoutingConfig           `yaml:"routing"`
-	Encryption  EncryptionConfig        `yaml:"encryption"`
-	Telemetry   TelemetryConfig         `yaml:"telemetry"`
-	Sanitize    SanitizeConfig          `yaml:"sanitize"`
-	Idempotency IdempotencyConfig       `yaml:"idempotency"`
-	Egress      EgressConfig            `yaml:"egress"`
+	Server         ServerConfig            `yaml:"server"`
+	AdminToken     string                  `yaml:"admin_token"`
+	Hub            HubConfig               `yaml:"hub"`
+	Providers      map[string]ProviderConf `yaml:"providers"`
+	ProvidersOrder []string                `yaml:"-"` // declaration order from YAML; empty -> sorted fallback
+	Keys           []KeyConf               `yaml:"keys"`
+	Resilience     ResilienceConfig        `yaml:"resilience"`
+	Routing        RoutingConfig           `yaml:"routing"`
+	Encryption     EncryptionConfig        `yaml:"encryption"`
+	Telemetry      TelemetryConfig         `yaml:"telemetry"`
+	Sanitize       SanitizeConfig          `yaml:"sanitize"`
+	Idempotency    IdempotencyConfig       `yaml:"idempotency"`
+	Egress         EgressConfig            `yaml:"egress"`
 	// Defaults — наследуемые провайдерами параметры (методика свапа ключей
 	// и политика ошибок). Провайдер может переопределить их в своей секции.
 	Defaults ProviderDefaults `yaml:"provider_defaults"`
@@ -161,12 +161,26 @@ type HubConfig struct {
 
 // TransportConf selects an optional independent outbound transport.
 type TransportConf struct {
-	Mode        string `yaml:"mode,omitempty"` // direct | static_proxy | warp | hub | iprotate | pool
-	APIURL      string `yaml:"api_url,omitempty"`
+	Mode   string `yaml:"mode,omitempty"` // direct | static_proxy | warp | hub | iprotate | pool
+	APIURL string `yaml:"api_url,omitempty"`
+	// SelfRotating marks a transport that sweeps egresses/instances itself
+	// (the opencode sidecar walks 50+ lanes per request). The router then makes
+	// ONE outer attempt: N outer attempts multiply the sweep (measured
+	// 2026-11-17: 4 x 7 s per 429, 27.7 s p50).
+	SelfRotating bool `yaml:"self_rotating,omitempty"`
+	// CLIUpstream is the TLS SNI/Host for mode: cli (the opencode CLI wire
+	// format). Empty means opencode.ai.
+	CLIUpstream string `yaml:"cli_upstream,omitempty"`
+	// WideState/WideTraces override the fleet files mode: cli reads the
+	// tooling defaults (wide_state.json + wide_traces.txt). A separate pool
+	// (the v2 stand, or a promoted v2 fleet on live) points them at its own
+	// files; env AI_ROUTER_WIDE_STATE/TRACES still wins when set.
+	WideState  string `yaml:"wide_state,omitempty"`
+	WideTraces string `yaml:"wide_traces,omitempty"`
 	// PoolAPI selects the warp-router pool contract: "" or "v1" (default)
 	// or "v2" (lease TTL/heartbeat/batch/epoch on /api/v2/pool/*). v2 is
 	// additive warp-side; the flag flips only this transport's dialect.
-	PoolAPI string `yaml:"pool_api,omitempty"`
+	PoolAPI     string `yaml:"pool_api,omitempty"`
 	ProxyURL    string `yaml:"proxy_url,omitempty"`
 	Token       string `yaml:"token,omitempty"`
 	PerRequest  bool   `yaml:"per_request,omitempty"`
@@ -229,11 +243,13 @@ type RequestConf struct {
 
 // ProviderConf is one upstream endpoint adapter. Type is "openai-compatible".
 type ProviderConf struct {
-	Type      string        `yaml:"type"`
-	BaseURL   string        `yaml:"base_url"`
-	APIKeys   []string      `yaml:"api_keys"`
-	AuthMode  string        `yaml:"auth_mode,omitempty"`  // bearer | none | public
-	UserAgent string        `yaml:"user_agent,omitempty"` // кастомный User-Agent (обязателен для opencode.ai/zen/v1)
+	Type     string   `yaml:"type"`
+	BaseURL  string   `yaml:"base_url"`
+	APIKeys  []string `yaml:"api_keys"`
+	AuthMode string   `yaml:"auth_mode,omitempty"` // bearer | none | public | api-key
+	// Headers: статические заголовки апстрима (DeepAI Code lane: X-DeepAI-Code-Theos/Instance/Machine).
+	Headers   map[string]string `yaml:"headers,omitempty"`
+	UserAgent string            `yaml:"user_agent,omitempty"` // кастомный User-Agent (обязателен для opencode.ai/zen/v1)
 	// ResponsesAPI: upstream speaks the OpenAI Responses protocol
 	// (POST /responses, "input" array, response.output_text.* SSE) instead
 	// of chat/completions. The router converts chat requests and maps the
@@ -244,15 +260,19 @@ type ProviderConf struct {
 	// x-preview on the same keyless endpoint).
 	ResponsesModels []string `yaml:"responses_models,omitempty"`
 
-	Models    []string      `yaml:"models"`
+	Models         []string `yaml:"models"`
 	DisabledModels []string `yaml:"disabled_models,omitempty"`
-	HiddenModels   []string `yaml:"hidden_models,omitempty"`
-	QuotaMode      string   `yaml:"quota_mode,omitempty"` // auto|usd|tokens
-	Fallback  []string      `yaml:"fallbacks"`
-	Egress    string        `yaml:"egress,omitempty"` // static proxy URL (optional)
-	Transport TransportConf `yaml:"transport,omitempty"`
-	Request   RequestConf   `yaml:"request,omitempty"`
-	TimeoutS  int           `yaml:"timeout_s,omitempty"`
+	// ModelMap renames a pinned model id for THIS provider: a fallback provider
+	// publishes the same capability under another id (kilocode's kilo-auto/free,
+	// OVH's Qwen3.5-397B). Used only by the pin-path fallback.
+	ModelMap     map[string]string `yaml:"model_map,omitempty"`
+	HiddenModels []string          `yaml:"hidden_models,omitempty"`
+	QuotaMode    string            `yaml:"quota_mode,omitempty"` // auto|usd|tokens
+	Fallback     []string          `yaml:"fallbacks"`
+	Egress       string            `yaml:"egress,omitempty"` // static proxy URL (optional)
+	Transport    TransportConf     `yaml:"transport,omitempty"`
+	Request      RequestConf       `yaml:"request,omitempty"`
+	TimeoutS     int               `yaml:"timeout_s,omitempty"`
 
 	Tier         string  `yaml:"tier,omitempty"` // subscription|api|cheap|free
 	Weight       float64 `yaml:"weight,omitempty"`
@@ -272,12 +292,39 @@ type ProviderConf struct {
 	DisabledKeys []string `yaml:"disabled_keys,omitempty"`
 	// KeyProxies — hash->proxy URL, привязка прокси к ключу из GUI.
 	KeyProxies map[string]string `yaml:"key_proxies,omitempty"`
+	// KeysFile — append-only файл дополнительных ключей («key» или
+	// «key<TAB>proxy» по строке). Демон дочитывает его без рестарта
+	// (internal/keyfeed): так авторег кладёт свежие ключи в пул сразу.
+	KeysFile string `yaml:"keys_file,omitempty"`
 	// DefaultKey — хэш приоритетного ключа (один), выставляется звездой в GUI.
 	DefaultKey string `yaml:"default_key,omitempty"`
 	// ModelReasoning — per-model reasoning override: ""/auto = gateway
 	// auto-detect (ensureReasoningMax), иначе explicit effort (xhigh/max/high/
 	// low/custom) — gateway passthrough, enforcement в route.tryProvider.
 	ModelReasoning map[string]string `yaml:"model_reasoning,omitempty"`
+	// Canary — прогон ограниченной выборки трафика через тестовый инстанс:
+	// любой не-2xx (включая 429) или таймаут немедленно уходит на этот же
+	// провайдер. Бюджет и число отказов ограничены.
+	Canary *CanaryConf `yaml:"canary,omitempty"`
+}
+
+// CanaryConf describes the test endpoint that receives a bounded sample of a
+// provider's traffic. An empty block disables the canary.
+type CanaryConf struct {
+	BaseURL     string `yaml:"base_url"`               // e.g. http://127.0.0.1:9003/v1
+	APIKey      string `yaml:"api_key,omitempty"`      // Bearer for the test instance
+	// MaxRequests caps the sample for a bounded rollout; 0 or negative means
+	// unlimited, which is what a multi-hour soak uses.
+	MaxRequests int `yaml:"max_requests,omitempty"`
+	// MaxFailures is the number of failed samples allowed inside the sliding
+	// Window before the canary is retired (0 = 3). A success pushes the window
+	// forward, so a recovered stand re-enters service without a restart.
+	MaxFailures int `yaml:"max_failures,omitempty"`
+	// Window is the sliding sample window used for the degradation verdict
+	// (0 = 20). Health probes answered 4xx are neutral and never enter it.
+	Window     int `yaml:"window,omitempty"`
+	CooldownS  int `yaml:"cooldown_s,omitempty"` // re-arm delay after retirement (0 = terminal)
+	TimeoutS   int `yaml:"timeout_s,omitempty"` // per-request timeout (0 = 120)
 }
 
 // KeyConf is a virtual key with optional quotas and model allowlist.
@@ -552,6 +599,7 @@ func Read(path string) (*Config, error) {
 	c.applyDefaults()
 	return c, nil
 }
+
 // Save writes the config atomically, creating parent directories.
 func Save(c *Config, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

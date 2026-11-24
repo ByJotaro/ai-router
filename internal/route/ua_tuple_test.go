@@ -19,7 +19,7 @@ func TestPinnedUATupleMatchesOneShippedBuild(t *testing.T) {
 	pinnedUAVer.Store("")
 	t.Cleanup(func() { pinnedUAVer.Store(prev) })
 
-	const captured = "opencode/1.19.5 ai-sdk/provider-utils/4.0.23 runtime/bun/1.4.0"
+	const captured = "opencode/1.19.6 ai-sdk/provider-utils/4.0.23 runtime/bun/1.4.4"
 	if got := pinnedUA(); got != captured {
 		t.Fatalf("UA не совпадает с захваченным CLI (%q): %q", captured, got)
 	}

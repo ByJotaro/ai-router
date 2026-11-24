@@ -52,6 +52,11 @@ const (
 	// gate streak (two consecutive gates) or by falling out of the 72h
 	// window — so err generous: covers active-but-old TUI sessions
 	// (2026-09-17: live session minted 09-11).
+	// 72 h. A 30-day window was tried on 2026-11-20 and made things WORSE:
+	// with ~400 old ids the pool handed them out and the gate answered 429
+	// FreeUsageLimit on every request (12/12 probes), because a stale id is a
+	// dead allowance. Starvation is a MINTING problem, not a window problem —
+	// keep the proven window and mint fresh ids instead.
 	sessionMaxAge = 72 * time.Hour
 	// sessionRefresh bounds db re-reads (WAL sqlite open per call is cheap
 	// but pointless faster than TUI mint cadence).
@@ -180,16 +185,25 @@ func defaultOpencodeDB() string {
 	return filepath.Join(h, ".local", "share", "opencode", "opencode.db")
 }
 
-// opencodeDBPath is the HARVEST source. Generation is the default (2026-11-07):
-// the free gate validates the 30-char ses_* FORMAT, and fallbackSessionFor
-// already keeps one generated id per egress — measured 6/6 200 on
-// opencode/deepseek-v4.1-flash-free with the pool empty, while the same model
-// failed whenever the harvest handed out an unregistered id (1733 dead rows in
-// opencode.db, 2026-11-07). Harvest only when a path is named explicitly;
-// "off" is kept as the old spelling of the same default.
+// opencodeDBPath is the HARVEST source. Generation is the default: the free
+// tier's daily allowance is charged to the SESSION, and the ids sitting in
+// opencode.db have already spent theirs.
+//
+// Measured 2026-11-22 15:5x on a brand-new WARP identity
+// (2a09:bac5:bd0c:3737::580:6d), same body and header set, only the session
+// differs:
+//   - db-real (harvested)             -> 429 FreeUsageLimitError, RA ~10.9h
+//   - ses_ + 12 random hex + 14 alnum -> 429 (the gate decodes the prefix)
+//   - ses_ + descending ms/4096 hex   -> 200, three requests in a row
+//
+// on five of six fresh lanes; the sixth refused both because that /64 itself
+// is parked. So every harvested id drags the router straight back into the
+// pool wall it just detected, while a per-egress formula id passes.
+// Harvest only when a path is named explicitly (AI_ROUTER_SESSION_DB=<path>);
+// "off" keeps the old spelling of the same default.
 func opencodeDBPath() string {
 	v := os.Getenv("AI_ROUTER_SESSION_DB")
-	if v == "" || v == "off" {
+	if v == "off" {
 		return ""
 	}
 	return v
@@ -464,8 +478,18 @@ func (s *SessionPool) NextFor(key string) string {
 			"ses", sesPrefix(id), "live", len(alive), "fresh", width, "pinned", len(s.pinned))
 		return s.pinLocked(key, id, len(alive), width, h)
 	}
-	// Supply exhausted: this egress gets NO identity. The caller must refuse
-	// the egress instead of shipping a shared or fabricated session.
+	// Supply exhausted: mint a per-egress SYNTHETIC session instead of
+	// refusing. The gate validates the FORMAT (TUI 1.19.4 shape: ses_ + 12
+	// hex + 14 alnum — opencode_headers.go), and fallbackSessionFor already
+	// ships such ids for header-less clients, so a starved egress is not a
+	// reason to 503: under a 50-agent load this branch produced 169
+	// "no free session" refusals in 6 minutes while the transport could have
+	// carried every call on a generated identity.
+	if id := fallbackSessionFor(key); id != "" {
+		slog.Info("sessionpool: synthetic session for starved egress",
+			"ses", sesPrefix(id), "live", len(alive), "pinned", len(s.pinned))
+		return id
+	}
 	slog.Warn("sessionpool: no free session — egress left without identity",
 		"live", len(alive), "pinned", len(s.pinned))
 	return ""
@@ -951,6 +975,40 @@ func (s *SessionPool) MarkGateHit(id, ekey string, ok bool) {
 // MarkDead immediately retires a harvested session id (e.g. on an upstream
 // 429) so the next request re-pins to a different live id instead of
 // reusing the same banned identity.
+// Release unpins an id after a 429 WITHOUT retiring it. A 429 on one lane
+// names that lane's window, not the id's validity (measured 2026-11-21: the
+// same id served 200s seconds later on another egress), yet MarkDead retired
+// the id for sessionReuseCooldown on EVERY egress 429 - after a wave of swaps
+// the pool sat at live=26 with no issuable id and fabricated a new session per
+// request, a guaranteed gate rejection. Release keeps the id in rotation for
+// other egresses and only records it as this key's previous choice, so the
+// in-request retry picks a different id.
+func (s *SessionPool) Release(id string) {
+	if id == "" {
+		return
+	}
+	// A released id is a 429 verdict on this identity: drop the synthetic
+	// session cached for its egress so the retry mints a fresh allowance
+	// instead of re-shipping the spent one (fallbackForget).
+	fallbackForget(id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, v := range s.pinned {
+		if v == id {
+			if s.lastFor == nil {
+				s.lastFor = map[string]string{}
+			}
+			s.lastFor[k] = id
+			delete(s.pinned, k)
+			delete(s.pinnedAt, k)
+		}
+	}
+	if key, ok := s.owner[id]; ok {
+		delete(s.owner, id)
+		_ = key
+	}
+}
+
 func (s *SessionPool) MarkDead(id string) {
 	if id == "" {
 		return

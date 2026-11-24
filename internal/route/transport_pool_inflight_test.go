@@ -18,7 +18,7 @@ func TestPickSpreadSkipsEgressAboveInflightCap(t *testing.T) {
 	key := pt.ipKey(hot.proxy, hot.publicIP)
 	pt.muMu.Lock()
 	pt.usedAt = map[string]time.Time{
-		key:                                  time.Now().Add(-time.Hour),
+		key:                                 time.Now().Add(-time.Hour),
 		pt.ipKey(cold.proxy, cold.publicIP): time.Now(),
 	}
 	pt.muMu.Unlock()

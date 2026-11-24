@@ -48,7 +48,7 @@ func TestSessionPoolStickyAndDead(t *testing.T) {
 	p := mkSessionDB(t, nil, [][2]any{
 		{"ses_new11111111111111111111111", ms(-time.Hour)},
 		{"ses_new22222222222222222222222", ms(-2 * time.Hour)},
-		{"ses_old99999999999999999999999", ms(-100 * time.Hour)},
+		{"ses_old99999999999999999999999", ms(-40 * 24 * time.Hour)},
 		{"not-a-session", ms(-time.Hour)},
 	})
 	sp := &SessionPool{DBPath: p, Now: func() time.Time { return now }}
@@ -62,7 +62,7 @@ func TestSessionPoolStickyAndDead(t *testing.T) {
 	// Gate is egress-correlated: ONE gate burns nothing (the same id may
 	// 200 on another egress the same minute). The SECOND consecutive gate
 	// on the SAME egress (no 200 in between) burns it and rotates to the
-	// next live id. Stale (72h) and non-ses_ rows are skipped without a
+	// next live id. Stale (older than 30d) and non-ses_ rows are skipped without a
 	// refresh.
 	sp.MarkGateHit(a, "ip-a", false)
 	if got := sp.Next(); got != a {
@@ -178,5 +178,25 @@ func TestSessionPoolHarvestsV2AndMerges(t *testing.T) {
 	p3 := mkSessionDB(t, [][2]any{{"ses_legacy55555555555555555555", ms(-2 * time.Hour)}}, nil)
 	if got := fetchSessionIDs(p3, 72*time.Hour, now); len(got) != 1 || got[0].id != "ses_legacy55555555555555555555" {
 		t.Fatalf("legacy db harvest failed: %+v", got)
+	}
+}
+
+// TestSessionFreshSpanBoundary pins the reverted 72h window. A 30-day window
+// answered FreeUsageLimit on 12/12 probes (2026-11-20) because it handed out
+// stale ids; the earlier fixture (-40d) is out of window under BOTH constants,
+// so only an explicit 72h-shouldered case guards the regression (review F3).
+func TestSessionFreshSpanBoundary(t *testing.T) {
+	now := time.Now()
+	ms := func(d time.Duration) int64 { return now.Add(d).UnixMilli() }
+	alive := []sessionEntry{
+		{id: "ses_new0000000000000000000000", updated: ms(0)},
+		{id: "ses_71h0000000000000000000000", updated: ms(-71 * time.Hour)},
+		{id: "ses_73h0000000000000000000000", updated: ms(-73 * time.Hour)},
+	}
+	if w := freshWidthLocked(alive); w != 2 {
+		t.Fatalf("fresh width = %d, want 2 (71h inside the 72h window, 73h outside)", w)
+	}
+	if sessionMaxAge != 72*time.Hour {
+		t.Fatalf("sessionMaxAge = %v, want the proven 72h window", sessionMaxAge)
 	}
 }

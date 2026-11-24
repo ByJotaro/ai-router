@@ -165,7 +165,7 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 		if s.ring != nil {
 			s.ring.Add("warn", fmt.Sprintf("responses upstream 500, retrying low model=%s", in.Model))
 		}
-		res, err = s.router.Call(callCtx, in.Model, forceLowReasoning(forcedAnswerBody(chatBody)), in.Stream)
+		res, err = s.router.Call(callCtx, in.Model, retryBodyAfterEmpty(chatBody), in.Stream)
 	}
 	if err != nil {
 		// Отмена клиента: соединение уже мёртво — не пишем ошибку в сокет и в лог.
@@ -189,7 +189,7 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if in.Stream {
-		s.serveResponsesStream(w, r, res, &in, k, admin, start)
+		s.serveResponsesStream(w, r, res, &in, chatBody, k, admin, start)
 		return
 	}
 	s.serveResponsesJSON(w, r, res, &in, chatBody, k, admin, callCtx, idemHash, start)
@@ -200,16 +200,25 @@ func (s *Server) handleResponses(w http.ResponseWriter, r *http.Request) {
 // answer instruction — same policy as the chat non-stream path.
 func (s *Server) serveResponsesJSON(w http.ResponseWriter, r *http.Request, res *route.Result, in *responsesIn, chatBody []byte, k string, admin bool, callCtx context.Context, idemHash string, start time.Time) {
 	const thinkOnlyRetries = 1
+	declared := declaredToolNames(chatBody)
 	for attempt := 0; ; attempt++ {
 		data, rerr := io.ReadAll(io.LimitReader(res.Resp.Body, 64<<20))
 		res.Resp.Body.Close()
+		if rerr == nil {
+			data = filterDeclaredToolCalls(data, declared)
+		}
 		final := attempt >= thinkOnlyRetries
+		if rerr == nil && final {
+			// Same rule as the chat lane: a final think-only answer carries the
+			// model's own reasoning text as content instead of an empty stop.
+			data = fillReasoningAsAnswer(data)
+		}
 		if rerr == nil && !final && thinkOnlyBody(data) {
 			if s.ring != nil {
 				s.ring.Add("warn", fmt.Sprintf("responses empty non-stream, retrying model=%s provider=%s attempt=%d", in.Model, res.Provider, attempt+1))
 			}
 			var err error
-			res, err = s.router.Call(callCtx, in.Model, forcedAnswerBody(chatBody), false)
+			res, err = s.router.Call(callCtx, in.Model, retryBodyAfterEmpty(chatBody), false)
 			if err != nil {
 				st := writeResponsesRouteError(w, err, s.sanitize)
 				slog.Default().Info("resp", "path", r.URL.Path, "status", st, "provider", "", "dur_ms", time.Since(start).Milliseconds())
@@ -238,7 +247,7 @@ func (s *Server) serveResponsesJSON(w http.ResponseWriter, r *http.Request, res 
 // The upstream may answer non-SSE (plain JSON despite stream=true): that
 // single body is emitted as synthesized deltas + completed, so the client
 // always sees a well-formed Responses stream.
-func (s *Server) serveResponsesStream(w http.ResponseWriter, r *http.Request, res *route.Result, in *responsesIn, k string, admin bool, start time.Time) {
+func (s *Server) serveResponsesStream(w http.ResponseWriter, r *http.Request, res *route.Result, in *responsesIn, chatBody []byte, k string, admin bool, start time.Time) {
 	// Honest upstream error before stream start: JSON error, never fake SSE.
 	if res.Status >= 400 {
 		data, _ := io.ReadAll(io.LimitReader(res.Resp.Body, 64<<20))
@@ -256,7 +265,7 @@ func (s *Server) serveResponsesStream(w http.ResponseWriter, r *http.Request, re
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
-	usage := transcodeChatSSEToResponses(w, res.Resp.Body, in)
+	usage := transcodeChatSSEToResponses(w, res.Resp.Body, in, declaredToolNames(chatBody))
 	res.Resp.Body.Close()
 	if usage != nil && !admin {
 		_ = s.keys.RecordUsageByKey(k, actualRespModel(res, in.Model), usage.PromptTokens, usage.CompletionTokens)
@@ -858,7 +867,7 @@ func responsesToolsEcho(raw json.RawMessage) any {
 // Non-SSE bodies (plain chat.completion JSON) are synthesized into the
 // same event sequence. Every event carries an explicit `event:` line per
 // the SSE standard, as in the official example.
-func transcodeChatSSEToResponses(w http.ResponseWriter, upstream io.Reader, in *responsesIn) *stream.Usage {
+func transcodeChatSSEToResponses(w http.ResponseWriter, upstream io.Reader, in *responsesIn, allowed map[string]bool) *stream.Usage {
 	respID := "resp_" + newRespHex(12)
 	msgID := "msg_" + newRespHex(12)
 	created := time.Now().Unix()
@@ -887,6 +896,11 @@ func transcodeChatSSEToResponses(w http.ResponseWriter, upstream io.Reader, in *
 	var text strings.Builder
 	var calls []respCall
 	callByIdx := map[int]*respCall{}
+	// blockedCall/heldArgs implement the declared-name filter: a call whose
+	// name the client never declared is dropped with its arguments, and
+	// fragments that arrive before the name are held until it is known.
+	blockedCall := map[int]bool{}
+	heldArgs := map[int]string{}
 	var usage *stream.Usage
 	status := "completed"
 	var failedErr any
@@ -923,6 +937,12 @@ func transcodeChatSSEToResponses(w http.ResponseWriter, upstream io.Reader, in *
 			c := v.Choices[0]
 			text.WriteString(c.Message.Content)
 			for _, tc := range c.Message.ToolCalls {
+				// Same declared-name contract as the SSE branch: an invented (or
+				// withAgentTools-injected) call must not surface as a function_call
+				// item just because the upstream answered plain JSON.
+				if allowed != nil && !allowed[tc.Function.Name] {
+					continue
+				}
 				calls = append(calls, respCall{ID: orStr(tc.ID, "call_"+newRespHex(12)), Name: tc.Function.Name, Arguments: tc.Function.Arguments})
 			}
 			switch c.FinishReason {
@@ -1006,6 +1026,9 @@ func transcodeChatSSEToResponses(w http.ResponseWriter, upstream io.Reader, in *
 					emitDelta(c.Delta.Content)
 				}
 				for _, tc := range c.Delta.ToolCalls {
+					if blockedCall[tc.Index] {
+						continue
+					}
 					cp := callByIdx[tc.Index]
 					if cp == nil {
 						calls = append(calls, respCall{ID: tc.ID, Index: tc.Index, Name: tc.Function.Name})
@@ -1017,8 +1040,33 @@ func transcodeChatSSEToResponses(w http.ResponseWriter, upstream io.Reader, in *
 					}
 					if tc.Function.Name != "" {
 						cp.Name = tc.Function.Name
+						// The Responses relay must obey the same declared-name
+						// contract as the chat path: an invented call is dropped
+						// with its argument fragments, never surfaced as a
+						// completed function_call (reviewer finding 2).
+						if allowed != nil && !allowed[cp.Name] {
+							blockedCall[tc.Index] = true
+							delete(heldArgs, tc.Index)
+							continue
+						}
+						if held := heldArgs[tc.Index]; held != "" {
+							cp.Arguments += held
+							emit("response.function_call_arguments.delta", map[string]any{
+								"type":    "response.function_call_arguments.delta",
+								"item_id": orStr(cp.ID, msgID), "output_index": len(calls) - 1,
+								"delta": held,
+							})
+							delete(heldArgs, tc.Index)
+						}
 					}
 					if tc.Function.Arguments != "" {
+						if cp.Name == "" && allowed != nil {
+							// Name not seen yet: hold the fragment until it is,
+							// otherwise an undeclared call's arguments would
+							// already be on the wire.
+							heldArgs[tc.Index] += tc.Function.Arguments
+							continue
+						}
 						cp.Arguments += tc.Function.Arguments
 						emit("response.function_call_arguments.delta", map[string]any{
 							"type":    "response.function_call_arguments.delta",
@@ -1080,6 +1128,9 @@ func transcodeChatSSEToResponses(w http.ResponseWriter, upstream io.Reader, in *
 		})
 	}
 	for i, c := range calls {
+		if blockedCall[c.Index] {
+			continue
+		}
 		cid := c.ID
 		if cid == "" {
 			cid = "call_" + newRespHex(12)

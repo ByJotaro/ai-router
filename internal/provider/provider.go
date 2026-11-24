@@ -23,6 +23,7 @@ type Provider struct {
 	APIKeys   []string
 	AuthMode  string
 	UserAgent string
+	Headers   map[string]string
 	// ResponsesAPI: upstream speaks the OpenAI Responses protocol; route
 	// requests to /responses and translate both directions (chat in,
 	// chat-SSE out).
@@ -31,15 +32,17 @@ type Provider struct {
 	// provider speak the Responses protocol.
 	ResponsesModels []string
 
-	Models    []string
+	Models         []string
 	DisabledModels []string
-	HiddenModels   []string
-	QuotaMode      string
-	Fallback  []string
-	Egress    string
-	Transport config.TransportConf
-	Request   config.RequestConf
-	TimeoutS  int
+	// ModelMap renames the pinned id for this provider (fallback target ids).
+	ModelMap     map[string]string
+	HiddenModels []string
+	QuotaMode    string
+	Fallback     []string
+	Egress       string
+	Transport    config.TransportConf
+	Request      config.RequestConf
+	TimeoutS     int
 
 	Tier         string  // subscription|api|cheap|free ("" → default tier)
 	Weight       float64 // routing weight (>1 preferred)
@@ -58,6 +61,8 @@ type Provider struct {
 	DefaultKey string
 	// ModelReasoning — per-model reasoning override (из ProviderConf).
 	ModelReasoning map[string]string
+	// Canary — ограниченная выборка трафика через тестовый endpoint.
+	Canary *config.CanaryConf
 }
 
 // ModelAllowed reports whether model is served by this provider. Empty
@@ -78,6 +83,7 @@ func (p *Provider) ModelAllowed(model string) bool {
 	}
 	return false
 }
+
 // Model aliasing (static): well-known short names rewrite to canonical model
 // ids before candidate resolution. Hidden
 // models never surface via aliases; retired ids are dropped entirely so a
@@ -164,7 +170,7 @@ func Resolve(name string, c config.ProviderConf) (*Provider, error) {
 		return nil, fmt.Errorf("provider %s: unknown type %q", name, c.Type)
 	}
 	switch c.AuthMode {
-	case "", "none", "bearer", "public":
+	case "", "none", "bearer", "public", "api-key":
 	default:
 		return nil, fmt.Errorf("provider %s: unknown auth_mode %q", name, c.AuthMode)
 	}
@@ -199,6 +205,11 @@ func Resolve(name string, c config.ProviderConf) (*Provider, error) {
 			kprox[k] = v
 		}
 	}
+	var canary *config.CanaryConf
+	if c.Canary != nil {
+		cp := *c.Canary
+		canary = &cp
+	}
 	p := &Provider{
 		Name:            name,
 		Type:            c.Type,
@@ -206,10 +217,12 @@ func Resolve(name string, c config.ProviderConf) (*Provider, error) {
 		APIKeys:         apiKeys,
 		AuthMode:        c.AuthMode,
 		UserAgent:       sanitizedUA,
+		Headers:         copyStringMap(c.Headers),
 		ResponsesAPI:    c.ResponsesAPI,
 		ResponsesModels: respModels,
 		Models:          models,
 		DisabledModels:  disModels,
+		ModelMap:        c.ModelMap,
 		HiddenModels:    hidModels,
 		QuotaMode:       c.QuotaMode,
 		Fallback:        fallback,
@@ -227,6 +240,7 @@ func Resolve(name string, c config.ProviderConf) (*Provider, error) {
 		KeyProxies:      kprox,
 		DefaultKey:      c.DefaultKey,
 		ModelReasoning:  mreas,
+		Canary:          canary,
 	}
 	if p.Tier == "" {
 		p.Tier = "free"
@@ -235,4 +249,17 @@ func Resolve(name string, c config.ProviderConf) (*Provider, error) {
 		p.Weight = 1
 	}
 	return p, nil
+}
+
+// copyStringMap returns a detached copy (config maps must not be mutated by
+// request-time code).
+func copyStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }

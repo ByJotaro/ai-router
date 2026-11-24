@@ -132,6 +132,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models", s.handleModels)
 	mux.HandleFunc("GET /admin/pool", s.handleAdminPool)
 	mux.HandleFunc("POST /admin/pool/rotate", s.handleAdminPoolRotate)
+	mux.HandleFunc("GET /admin/bypass", s.handleAdminBypass)
+	mux.HandleFunc("POST /admin/bypass/run", s.handleAdminBypassRun)
+	mux.HandleFunc("POST /admin/bypass/apply", s.handleAdminBypassApply)
+	mux.HandleFunc("POST /admin/bypass/reset", s.handleAdminBypassReset)
 	return gatewayTimeoutHandler(s.log(mux), 180*time.Second, `{"error":{"message":"gateway timeout: no upstream data for 180s","type":"gateway_timeout","code":"gateway_timeout"}}`)
 }
 
@@ -427,10 +431,33 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		Model string `json:"model"`
 	}
 	_ = json.Unmarshal(body, &hintModel)
+	// The opencode free tier cuts the answer at its own DEFAULT output cap when
+	// the client omits max_tokens (measured 2026-11-21: OMP sends no
+	// max_tokens; finish=length mid tool-call). The provider accepts 32k, so
+	// give it the model ceiling and let the PROVIDER decide where to stop.
+	if strings.HasPrefix(hintModel.Model, "opencode/") {
+		var m map[string]json.RawMessage
+		if json.Unmarshal(body, &m) == nil {
+			// Raise, don't just fill: compaction/summary calls ship a small
+			// explicit max_tokens and the reasoning then eats it (measured
+			// 2026-11-22: compaction "hit the output limit (0 tokens)").
+			mt := 0
+			if raw, ok := m["max_tokens"]; ok {
+				_ = json.Unmarshal(raw, &mt)
+			}
+			if mt < 32000 {
+				m["max_tokens"] = json.RawMessage("32000")
+				if nb, err := json.Marshal(m); err == nil {
+					body = nb
+				}
+			}
+		}
+	}
 	body = s.applyReasoningPolicy(body, hintModel.Model)
 	var req struct {
-		Model  string `json:"model"`
-		Stream bool   `json:"stream"`
+		Model     string `json:"model"`
+		Stream    bool   `json:"stream"`
+		MaxTokens int    `json:"max_tokens"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid_request", "invalid_request_error", "request body is not valid JSON: "+err.Error())
@@ -441,7 +468,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Default().Info("req", "remote", r.RemoteAddr, "model", req.Model, "stream", req.Stream, "rid", strings.TrimSpace(r.Header.Get("X-Request-ID")))
+	slog.Default().Info("req", "remote", r.RemoteAddr, "model", req.Model, "stream", req.Stream, "max_tokens", req.MaxTokens, "rid", strings.TrimSpace(r.Header.Get("X-Request-ID")))
 	admin, k, aerr := s.authenticate(r)
 	if aerr != nil {
 		writeErr(w, aerr.Status, aerr.Code, aerr.Type, aerr.Message)
@@ -494,7 +521,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		if s.ring != nil {
 			s.ring.Add("warn", fmt.Sprintf("openai upstream 500, retrying low model=%s", req.Model))
 		}
-		res, err = s.router.Call(callCtx, req.Model, forceLowReasoning(forcedAnswerBody(body)), req.Stream)
+		res, err = s.router.Call(callCtx, req.Model, retryBodyAfterEmpty(body), req.Stream)
 	}
 	// A text-only engine instance refused the images even after the router's
 	// strip-retry. A 400 is terminal for the client (OMP retries 5xx/429 only),
@@ -535,6 +562,12 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 			// telemetry rides on the terminal error now. Without this the journal
 			// recorded attempts=0 for 503s that burned up to six egresses.
 			ev.Attempts, ev.RetryMS = use.Attempts, use.RetryMS
+			// A failed request must still name the egress it died on: without
+			// this, every error row logged proxy='' (event built with res=nil)
+			// and an unpinned key was indistinguishable from a dead lane.
+			if use.Proxy != "" {
+				ev.Proxy = use.Proxy
+			}
 			if use.RetryAfter != "" {
 				ev.Error += " retry_after=" + use.RetryAfter
 			}
@@ -556,10 +589,14 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		// a fresh lease with an appended "answer now" instruction: the
 		// upstream emitted no content and Passthrough buffered everything,
 		// so the client saw nothing yet. Only the final attempt emits the
-		// (empty) terminal chunk.
-		const thinkOnlyRetries = 1
+		// (empty) terminal chunk. Two retries, not one: deepseek free
+		// regularly thinks twice without answering (measured 2026-11-22:
+		// attempt 0 and 1 both reasoning-only, and the final promotion put
+		// "The user just wants me to say pong. Simple." into the answer
+		// slot — the "reasoning ends up as the answer text" bug).
+		const thinkOnlyRetries = 2
 		for attempt := 0; ; attempt++ {
-			usage, thinkOnly := s.handleStream(w, r, res, k, req.Model, admin, attempt >= thinkOnlyRetries, attempt == 0)
+			usage, thinkOnly := s.handleStream(w, r, res, k, req.Model, admin, attempt >= thinkOnlyRetries, attempt == 0, attempt > 0, declaredToolNames(body))
 			if !thinkOnly {
 				// Honest status: handleStream relays >=400 with the real
 				// code — logging 200 for it corrupts error accounting.
@@ -574,7 +611,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 			if s.ring != nil {
 				s.ring.Add("warn", fmt.Sprintf("openai think-only stream, retrying model=%s provider=%s attempt=%d", req.Model, res.Provider, attempt+1))
 			}
-			res, err = s.router.Call(callCtx, req.Model, forcedAnswerBody(body), req.Stream)
+			res, err = s.router.Call(callCtx, req.Model, retryBodyAfterEmpty(body), req.Stream)
 			if err != nil {
 				// Stream headers (200 + SSE) are already sent; a second
 				// WriteHeader would corrupt the response (superfluous
@@ -595,6 +632,19 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 				if s.ring != nil {
 					s.ring.Add("warn", "think-only retry failed: "+crypto.SanitizeForLog(err.Error()))
 				}
+				// Headers (200 + SSE) are already on the wire. An empty
+				// "stop" would surface as "Assistant returned an empty stop
+				// after retry cap" (OMP blames the client's context); a bare
+				// open body hangs until the client's read timeout. Relay the
+				// retry failure as an SSE error event, then close cleanly.
+				msg := crypto.SanitizeForLog(err.Error())
+				payload, _ := json.Marshal(map[string]any{"error": map[string]any{
+					"type": "upstream_retry_failed", "message": msg,
+				}})
+				_, _ = io.WriteString(w, "data: "+string(payload)+"\n\ndata: [DONE]\n\n")
+				if f, ok := w.(http.Flusher); ok {
+					f.Flush()
+				}
 				return
 			}
 		}
@@ -602,18 +652,30 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	// Non-stream: an upstream 2xx whose first choice carries no content and
 	// no tool calls is a think-only / empty answer (muse often replies with
 	// reasoning only). The client must not see a "successful" empty 200 —
-	// retry once on a fresh lease with an explicit answer instruction, same
-	// policy as the stream path. Final attempt relays the honest body.
-	const thinkOnlyRetries = 1
+	// retry on a fresh lease with an explicit answer instruction, same
+	// policy as the stream path. Two retries (see the stream constant).
+	const thinkOnlyRetries = 2
+	declared := declaredToolNames(body)
 	for attempt := 0; ; attempt++ {
 		data, rerr := io.ReadAll(io.LimitReader(res.Resp.Body, 64<<20))
 		res.Resp.Body.Close()
+		if rerr == nil {
+			// Filter BEFORE the think-only decision: a body whose only output
+			// was an undeclared call becomes empty after the drop, and must
+			// take the retry path instead of being served as a silent 200.
+			data = filterDeclaredToolCalls(data, declared)
+		}
 		final := attempt >= thinkOnlyRetries
+		if rerr == nil && final {
+			// A final think-only answer must not reach the client as an empty
+			// stop: OMP aborts such a turn with "empty stop after retry cap".
+			data = fillReasoningAsAnswer(data)
+		}
 		if rerr == nil && !final && thinkOnlyBody(data) {
 			if s.ring != nil {
 				s.ring.Add("warn", fmt.Sprintf("openai empty non-stream, retrying model=%s provider=%s attempt=%d", req.Model, res.Provider, attempt+1))
 			}
-			res, err = s.router.Call(callCtx, req.Model, forcedAnswerBody(body), req.Stream)
+			res, err = s.router.Call(callCtx, req.Model, retryBodyAfterEmpty(body), req.Stream)
 			if err != nil {
 				// res is nil here (Call never returns a result with an error):
 				// logging res.Provider panicked the handler and the client saw
@@ -624,28 +686,27 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
-		usage := s.respondNonStream(w, res, k, req.Model, admin, idemHash, data)
+		usage := s.respondNonStream(w, res, k, req.Model, admin, idemHash, data, declared)
 		s.enqueueRecord(s.requestEvent(req.Model, res, usage, k, res.Status, start, r), "/v1/chat/completions")
 		slog.Default().Info("resp", "status", res.Status, "provider", res.Provider, "stream", false, "dur_ms", time.Since(start).Milliseconds())
 		return
 	}
 }
 
-// forcedAnswerBody prepares the think-only retry: appends an explicit user
-// instruction AND drops reasoning to low. The first pass ran at xhigh+32768
-// (gateway default); retrying the same depth replays the same upstream 500
-// (2026-09-19: killer-промпт 500 на xhigh/high/medium, 200 на low).
-// OMP без reasoning видел эти 500 как empty stop и сдавался после 3 попыток.
-// Low на ретрае — осознанный даунгрейд глубины ради ответа: лучше короткий
-// ответ, чем честный 500/пустой стоп после retry cap.
+// forcedAnswerBody prepares the retry of a plain chat turn that produced no
+// visible answer: it appends an explicit user instruction. It never changes
+// the reasoning depth and is never used for agent turns (see
+// retryBodyAfterEmpty).
+// Every other field is preserved verbatim: rebuilding the body from messages
+// alone dropped the client's reasoning depth (max -> upstream default), which
+// is the same silent downgrade in another form.
 func forcedAnswerBody(body []byte) []byte {
-	var doc struct {
-		Messages []map[string]any `json:"messages"`
-	}
+	var doc map[string]any
 	if json.Unmarshal(body, &doc) != nil {
 		return body
 	}
-	doc.Messages = append(doc.Messages, map[string]any{
+	msgs, _ := doc["messages"].([]any)
+	doc["messages"] = append(msgs, map[string]any{
 		"role": "user",
 		"content": "(internal continuation) The previous turn produced no visible answer. " +
 			"Reply now with the final answer as plain text.",
@@ -654,12 +715,75 @@ func forcedAnswerBody(body []byte) []byte {
 	if err != nil {
 		return body
 	}
-	return forceLowReasoning(out)
+	return out
+}
+
+// retryBodyAfterEmpty prepares the retry after an attempt that produced no
+// visible answer. A plain chat turn has no other way to produce text, so it
+// gets the forced-answer nudge. An AGENT turn (the client declared tools) must
+// keep its own request shape: forcedAnswerBody drops the tool list and the
+// message that replaces it asks for "the final answer as plain text", so the
+// model abandons tool calls and writes prose; with a 170k-token agent context
+// that prose stops mid-sentence and the client records a successful stop (the
+// 2026-11-19 OMP cut, reproduced 2026-11-20 from a MITM dump of this retry:
+// tools replaced by the canonical read+bash pair, reasoning max -> low,
+// max_tokens dropped). Retrying the agent shape unchanged leaves the decision
+// to the router's own lease retry and to the client.
+// Nothing here lowers the reasoning depth: answers are never silently made
+// shallower (2026-11-20: no downgrade path in the gateway).
+func retryBodyAfterEmpty(body []byte) []byte {
+	if isAgentBody(body) {
+		return nudgeAgentBody(body)
+	}
+	return forcedAnswerBody(body)
+}
+
+// nudgeAgentBody retries an agent turn with an explicit "execute now" message.
+// A byte-identical retry reproduced the same think-only reply, and the
+// reasoning-salvage then handed the agent its own plan as the answer — measured
+// 2026-11-20: subagents finished in ~6 s "stopped at a plan", were woken, and
+// stopped at the plan again. The nudge keeps every field (tools, reasoning
+// policy, max_tokens) and only appends one user turn.
+func nudgeAgentBody(body []byte) []byte {
+	var doc map[string]any
+	if json.Unmarshal(body, &doc) != nil {
+		return body
+	}
+	msgs, _ := doc["messages"].([]any)
+	const nudge = "No tool call has been made yet. Continue the task now by calling the next tool. Do not restate the plan and do not describe what you will do — execute it."
+	if n := len(msgs); n > 0 {
+		if last, ok := msgs[n-1].(map[string]any); ok {
+			if c, _ := last["content"].(string); c == nudge {
+				return body
+			}
+		}
+	}
+	doc["messages"] = append(msgs, map[string]any{"role": "user", "content": nudge})
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+// isAgentBody reports whether the client declared tools, i.e. the turn is an
+// agent step whose answer is a tool call, not prose. Any non-empty tools array
+// counts, whatever its element shape: name-parsing would miss the flat
+// {"type":"function","name":...} form and silently send that client down the
+// plain-text retry.
+func isAgentBody(body []byte) bool {
+	var doc struct {
+		Tools []json.RawMessage `json:"tools"`
+	}
+	if json.Unmarshal(body, &doc) != nil {
+		return false
+	}
+	return len(doc.Tools) > 0
 }
 
 // isUpstream500: ошибка Call с UpstreamStatusError.Status == 500.
-// hasExplicitReasoning: клиент сам задал reasoning (не трогаем —
-// forceLowReasoning переписал бы чужой explicit).
+// hasExplicitReasoning: клиент сам задал reasoning (тогда ретрай идёт
+// как есть, без всякой правки запроса).
 func isUpstream500(err error) bool {
 	var use *route.UpstreamStatusError
 	if errors.As(err, &use) && use.Status == http.StatusInternalServerError {
@@ -681,32 +805,25 @@ func hasExplicitReasoning(body []byte) bool {
 	return false
 }
 
-// forceLowReasoning переписывает reasoning-инжект на low без budget_tokens:
-// ретрай после think-only/500 идёт на малой глубине (единственный уровень,
-// переживший killer-промпт). Клиентский explicit не трогаем (его там нет —
-// forcedAnswerBody зовётся только когда инжектил gateway).
-func forceLowReasoning(body []byte) []byte {
-	var m map[string]any
-	if json.Unmarshal(body, &m) != nil {
-		return body
+// effortRank orders the effort labels clients and the operator panel use, so
+// a policy can be applied as a FLOOR: it may raise a client's level but must
+// never lower it.
+func effortRank(effort string) int {
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "none", "off", "minimal", "disabled":
+		return 0
+	case "low":
+		return 1
+	case "medium", "mid":
+		return 2
+	case "high":
+		return 3
+	case "xhigh":
+		return 4
+	case "max":
+		return 5
 	}
-	m["reasoning_effort"] = "low"
-	// The object "reasoning" form is only valid for the reasoning-injected
-	// families (mirroring ensureReasoningMax). Arbitrary upstreams reject
-	// unknown object fields: OVH answers 400 "extra arguments:
-	// {reasoning:{effort:low}}" while accepting flat reasoning_effort
-	// (live 2026-10-25).
-	if model, _ := m["model"].(string); model != "" {
-		lm := strings.ToLower(model)
-		if strings.Contains(lm, "muse-spark") || strings.Contains(lm, "mimo") || strings.Contains(lm, "x-preview") {
-			m["reasoning"] = map[string]any{"effort": "low"}
-		}
-	}
-	out, err := json.Marshal(m)
-	if err != nil {
-		return body
-	}
-	return out
+	return 0
 }
 
 // applyReasoningPolicy applies the operator's per-model reasoning effort
@@ -724,6 +841,12 @@ func (s *Server) applyReasoningPolicy(body []byte, model string) []byte {
 		return ensureReasoningMax(body)
 	}
 	out, clientEff, sentEff := route.WithReasoning(body, eff)
+	// The operator setting is a FLOOR, not a cap: a client that asked for a
+	// deeper level keeps it. Lowering it silently made answers shallower than
+	// either side asked for (2026-11-20: max -> low on every think-only retry).
+	if effortRank(clientEff) > effortRank(sentEff) {
+		out, _, sentEff = route.WithReasoning(body, clientEff)
+	}
 	if clientEff != "" && sentEff != "" && !strings.EqualFold(clientEff, sentEff) {
 		// Once per (model, client value): a noisy per-request WARN would bury
 		// real warnings, but the fact must be visible somewhere.
@@ -901,6 +1024,63 @@ func maskKey(v string) string {
 	return v[:6] + "…" + v[len(v)-4:]
 }
 
+// fillReasoningAsAnswer rewrites a think-only chat.completion body so the
+// reasoning text the upstream did send lands in choices[0].message.content.
+// A final-attempt empty stop is fatal for the client — OMP aborts the turn with
+// "Assistant returned an empty stop after retry cap; provider reported N output
+// tokens, but no text or tool calls were delivered" (measured 2026-11-20 on the
+// opencode free lane, where reasoning-only stops are the norm). The model's own
+// words keep the turn usable; the request is untouched, so the reasoning depth
+// is never lowered. A body that already carries content is returned as is.
+func fillReasoningAsAnswer(data []byte) []byte {
+	var doc map[string]any
+	if json.Unmarshal(data, &doc) != nil {
+		return data
+	}
+	choices, _ := doc["choices"].([]any)
+	if len(choices) == 0 {
+		return data
+	}
+	msg, _ := choices[0].(map[string]any)
+	if m, ok := msg["message"].(map[string]any); ok {
+		msg = m
+	}
+	if msg == nil {
+		return data
+	}
+	// A tool-call turn is a real answer: its content slot is legitimately
+	// null and must not be overwritten with the model's reasoning prose.
+	if calls, ok := msg["tool_calls"].([]any); ok && len(calls) > 0 {
+		return data
+	}
+	// Content blocks (a JSON array) are a real answer: overwriting them with
+	// reasoning prose destroyed multimodal/structured replies. Only an empty
+	// or absent string counts as think-only.
+	if c, ok := msg["content"]; ok && c != nil {
+		if s, ok := c.(string); ok {
+			if s != "" {
+				return data
+			}
+		} else {
+			return data
+		}
+	}
+	reason, _ := msg["reasoning_content"].(string)
+	if reason == "" {
+		reason, _ = msg["reasoning"].(string)
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return data
+	}
+	msg["content"] = reason
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return data
+	}
+	return out
+}
+
 // thinkOnlyBody reports whether a non-stream upstream body is an empty /
 // think-only answer: HTTP was 2xx, first choice carries no content and no
 // tool calls (muse free-tier reliably answers with reasoning only). Such a
@@ -923,13 +1103,18 @@ func thinkOnlyBody(data []byte) bool {
 }
 
 // respondNonStream writes a pre-read upstream body and records usage.
-func (s *Server) respondNonStream(w http.ResponseWriter, res *route.Result, k string, model string, admin bool, idemHash string, data []byte) *stream.Usage {
+func (s *Server) respondNonStream(w http.ResponseWriter, res *route.Result, k string, model string, admin bool, idemHash string, data []byte, allowedTools map[string]bool) *stream.Usage {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(res.Status)
 	if len(data) == 0 {
 		_, _ = w.Write([]byte(`{}`))
 		return nil
 	}
+	// The SSE passthrough drops tool calls the client never declared; a
+	// non-stream answer must apply the same rule, or the same prompt leaks an
+	// invented name (measured: stream:false with tools=[get_time] returned
+	// "example_function_name").
+	data = filterDeclaredToolCalls(data, allowedTools)
 	_, _ = w.Write(data)
 	var usage *stream.Usage
 	var u struct {
@@ -955,7 +1140,7 @@ func (s *Server) respondNonStream(w http.ResponseWriter, res *route.Result, k st
 // captured usage (for the request event/log) and whether the stream was
 // think-only (reasoning without content — the caller retries on a fresh
 // lease unless final).
-func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, res *route.Result, k string, model string, admin, final, writeHeaders bool) (*stream.Usage, bool) {
+func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, res *route.Result, k string, model string, admin, final, writeHeaders, suppressReasoning bool, allowedTools map[string]bool) (*stream.Usage, bool) {
 	defer res.Resp.Body.Close()
 	if writeHeaders {
 		// Honest upstream error (e.g. muse 403 RegionError): relay the
@@ -964,11 +1149,21 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, res *route
 		if res.Status >= 400 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(res.Status)
-			data, _ := io.ReadAll(io.LimitReader(res.Resp.Body, 64<<20))
+			// A provider 4xx/5xx body is error JSON of a few hundred bytes. A
+			// larger one is not an error document (wrong base_url, an HTML block
+			// page, a mixed-tenant fragment): relay a generic body instead of
+			// streaming a third party's bytes - including its trace ids and
+			// internal URLs - to the client (review 2026-11-15).
+			const errBodyCap = 8 << 10
+			data, _ := io.ReadAll(io.LimitReader(res.Resp.Body, errBodyCap+1))
+			if len(data) > errBodyCap {
+				slog.Default().Warn("upstream error body suppressed", "provider", res.Provider, "status", res.Status, "bytes", len(data))
+				data = nil
+			}
 			if len(data) > 0 {
 				_, _ = w.Write(data)
 			} else {
-				_, _ = w.Write([]byte(`{"error":{"type":"upstream_error","message":"upstream returned no body"}}`))
+				_, _ = w.Write([]byte(`{"error":{"type":"upstream_error","message":"upstream error body suppressed"}}`))
 			}
 			return nil, false
 		}
@@ -977,7 +1172,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, res *route
 		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(http.StatusOK)
 	}
-	usage, thinkOnly := stream.Passthrough(w, res.Resp.Body, res.Header.Get("Content-Type"), true, final)
+	usage, thinkOnly := stream.Passthrough(w, res.Resp.Body, res.Header.Get("Content-Type"), true, final, allowedTools, suppressReasoning)
 	if !admin && usage.TotalTokens > 0 {
 		actualModel := model
 		if res.Model != "" {
@@ -986,6 +1181,124 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, res *route
 		_ = s.keys.RecordUsageByKey(k, actualModel, usage.PromptTokens, usage.CompletionTokens)
 	}
 	return &usage, thinkOnly
+}
+
+// filterDeclaredToolCalls drops choices[].message.tool_calls whose function
+// name the client never declared, mirroring the SSE passthrough. An answer
+// left without calls closes as a plain stop; a body with nothing to drop is
+// returned untouched.
+func filterDeclaredToolCalls(data []byte, allowed map[string]bool) []byte {
+	if allowed == nil || len(data) == 0 {
+		// nil = the body could not be parsed (fail-open). An EMPTY non-nil set
+		// means "the client declared nothing", which must drop every call — the
+		// stream path already does (withAgentTools injects read/bash into -free
+		// bodies, and a tool-less client cannot run them).
+		return data
+	}
+	var doc map[string]any
+	if json.Unmarshal(data, &doc) != nil {
+		return data
+	}
+	choices, _ := doc["choices"].([]any)
+	changed := false
+	for _, c := range choices {
+		cm, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		msg, ok := cm["message"].(map[string]any)
+		if !ok {
+			continue
+		}
+		calls, ok := msg["tool_calls"].([]any)
+		if !ok || len(calls) == 0 {
+			continue
+		}
+		kept := make([]any, 0, len(calls))
+		dropped := false
+		for _, tc := range calls {
+			tm, _ := tc.(map[string]any)
+			fn, _ := tm["function"].(map[string]any)
+			name, _ := fn["name"].(string)
+			if allowed[name] {
+				kept = append(kept, tm)
+				continue
+			}
+			dropped = true
+		}
+		if !dropped {
+			continue
+		}
+		changed = true
+		if len(kept) == 0 {
+			delete(msg, "tool_calls")
+			if fr, _ := cm["finish_reason"].(string); fr == "tool_calls" {
+				cm["finish_reason"] = "stop"
+			}
+			continue
+		}
+		msg["tool_calls"] = kept
+	}
+	if !changed {
+		return data
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return data
+	}
+	return out
+}
+
+// declaredToolNames parses the inbound body's tools[].function.name into a set
+// the stream layer filters against. nil means "the client declared no tools",
+// which disables filtering entirely: a client that asked for none must never
+// receive a function call it cannot run.
+func declaredToolNames(body []byte) map[string]bool {
+	if len(body) == 0 {
+		return nil
+	}
+	var doc struct {
+		Tools []struct {
+			// The flat responses shape carries the name at the top level; the
+			// router itself accepts that shape (withAgentTools treats it as
+			// "already-flat"), so the filter must read it too — otherwise a
+			// flat-shaped agent body yields an empty set and every call is
+			// dropped without a notice (review 2026-11-20 F4).
+			Name     string `json:"name"`
+			Function struct {
+				Name string `json:"name"`
+			} `json:"function"`
+		} `json:"tools"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		// A body that does not parse is the one case where the tool filter has
+		// to fail open; without a line here, a client whose every agent turn
+		// silently loses the filter looks identical to a tool-less client.
+		slog.Default().Warn("declared tools unparseable: filter disabled", "err", err.Error(), "bytes", len(body))
+		return nil
+	}
+	// An empty non-nil set means "the client declared no tools": the filter
+	// then drops every call, including the read/bash pair withAgentTools
+	// injects for -free models (a tool-less client cannot run those anyway).
+	// nil is reserved for an unparseable body (fail-open).
+	set := make(map[string]bool, len(doc.Tools))
+	for _, t := range doc.Tools {
+		n := t.Function.Name
+		if n == "" {
+			n = t.Name
+		}
+		if n != "" {
+			set[n] = true
+		}
+	}
+	// A non-empty array with no readable names is a shape we do not understand:
+	// an empty set would silently drop every call the client declared. Fail
+	// open (nil) and say so, same contract as an unparseable body.
+	if len(doc.Tools) > 0 && len(set) == 0 {
+		slog.Default().Warn("declared tools carry no readable names: filter disabled", "tools", len(doc.Tools), "bytes", len(body))
+		return nil
+	}
+	return set
 }
 
 // writeRouteError converts route errors into OpenAI-format responses and
@@ -1021,6 +1334,15 @@ func (s *Server) writeRouteError(w http.ResponseWriter, err error) int {
 			// client sees the real reason; region 403s stay region_error.
 			if strings.Contains(msg, "account gate:") {
 				writeErr(w, http.StatusForbidden, "account_gate", "invalid_request_error", msg)
+				return http.StatusForbidden
+			}
+			// Benefit restriction (inferway free accounts: "Free text use is
+			// temporarily restricted", retryable:false) is an account verdict,
+			// not a region one — a region_error code sends the client hunting
+			// for a working egress while the allowance is simply spent.
+			if lmsg := strings.ToLower(msg); strings.Contains(lmsg, "benefits_restricted") ||
+				strings.Contains(lmsg, "free text use") {
+				writeErr(w, http.StatusForbidden, "account_benefits_restricted", "invalid_request_error", msg)
 				return http.StatusForbidden
 			}
 			// 403 RegionError — honest passthrough, not 502.

@@ -23,26 +23,33 @@ import (
 // shape the gate refuses.
 
 const (
-	dumpDirEnvVar = "AI_ROUTER_DUMP_DIR"
-	dumpAllEnvVar = "AI_ROUTER_DUMP_ALL"
-	dumpRingCap   = 200
-	dumpBodyHead  = 2048
-	dumpErrHead   = 512
+	dumpDirEnvVar    = "AI_ROUTER_DUMP_DIR"
+	dumpAllEnvVar    = "AI_ROUTER_DUMP_ALL"
+	dumpBodiesEnvVar = "AI_ROUTER_DUMP_BODIES"
+	dumpRingCap      = 200
+	dumpBodyHead     = 2048
+	dumpErrHead      = 512
+	dumpBodyMax      = 16 << 20
 )
 
 // reqRecord is one observed gateway request. JSON tags double as the JSONL
 // dump schema.
 type reqRecord struct {
-	TS         string            `json:"ts"`
-	Path       string            `json:"path"`
-	Status     int               `json:"status"`
-	DurMS      int64             `json:"dur_ms"`
-	Remote     string            `json:"remote,omitempty"`
-	UA         string            `json:"ua,omitempty"`
-	Model      string            `json:"model,omitempty"`
-	Stream     bool              `json:"stream"`
-	Messages   int               `json:"messages"`
-	Tools      int               `json:"tools"`
+	TS       string `json:"ts"`
+	Path     string `json:"path"`
+	Status   int    `json:"status"`
+	DurMS    int64  `json:"dur_ms"`
+	Remote   string `json:"remote,omitempty"`
+	UA       string `json:"ua,omitempty"`
+	Model    string `json:"model,omitempty"`
+	Stream   bool   `json:"stream"`
+	Messages int    `json:"messages"`
+	Tools    int    `json:"tools"`
+	// MaxTokens is what the CLIENT asked the model to emit. It is the other
+	// half of a finish=length verdict: without it a cut answer cannot be told
+	// from an upstream cap (2026-11-20: "text is truncated" reached the ring
+	// as a 1.4 MB body whose first 2 KB carry no max_tokens).
+	MaxTokens  int               `json:"max_tokens,omitempty"`
 	BodyLen    int               `json:"body_len"`
 	BodySHA    string            `json:"body_sha"`
 	SessionHdr string            `json:"session_hdr,omitempty"`
@@ -128,22 +135,28 @@ func (d *dumpWriter) Unwrap() http.ResponseWriter { return d.ResponseWriter }
 
 // fingerprintBody extracts the routing-relevant facts from a chat/responses
 // body. Unknown shapes leave the zero values.
-func fingerprintBody(body []byte) (model string, stream bool, messages, tools int) {
+func fingerprintBody(body []byte) (model string, stream bool, messages, tools, maxTokens int) {
 	var probe struct {
-		Model    string            `json:"model"`
-		Stream   bool              `json:"stream"`
-		Messages []json.RawMessage `json:"messages"`
-		Input    []json.RawMessage `json:"input"`
-		Tools    []json.RawMessage `json:"tools"`
+		Model               string            `json:"model"`
+		Stream              bool              `json:"stream"`
+		Messages            []json.RawMessage `json:"messages"`
+		Input               []json.RawMessage `json:"input"`
+		Tools               []json.RawMessage `json:"tools"`
+		MaxTokens           int               `json:"max_tokens"`
+		MaxCompletionTokens int               `json:"max_completion_tokens"`
 	}
 	if json.Unmarshal(body, &probe) != nil {
-		return "", false, 0, 0
+		return "", false, 0, 0, 0
 	}
 	messages = len(probe.Messages)
 	if messages == 0 {
 		messages = len(probe.Input)
 	}
-	return probe.Model, probe.Stream, messages, len(probe.Tools)
+	maxTokens = probe.MaxCompletionTokens
+	if maxTokens == 0 {
+		maxTokens = probe.MaxTokens
+	}
+	return probe.Model, probe.Stream, messages, len(probe.Tools), maxTokens
 }
 
 // finishRequest records a completed gateway call. It always feeds the
@@ -159,21 +172,22 @@ func finishRequest(r *http.Request, body []byte, dw *dumpWriter, start time.Time
 		status = dw.status
 		errHead = strings.TrimSpace(string(dw.prefix))
 	}
-	model, stream, msgs, ntools := fingerprintBody(body)
+	model, stream, msgs, ntools, maxTokens := fingerprintBody(body)
 	sum := sha256.Sum256(body)
 	rec := reqRecord{
-		TS:       start.UTC().Format(time.RFC3339Nano),
-		Path:     r.URL.Path,
-		Status:   status,
-		DurMS:    time.Since(start).Milliseconds(),
-		Remote:   r.RemoteAddr,
-		UA:       r.Header.Get("User-Agent"),
-		Model:    model,
-		Stream:   stream,
-		Messages: msgs,
-		Tools:    ntools,
-		BodyLen:  len(body),
-		BodySHA:  hex.EncodeToString(sum[:8]),
+		TS:        start.UTC().Format(time.RFC3339Nano),
+		Path:      r.URL.Path,
+		Status:    status,
+		DurMS:     time.Since(start).Milliseconds(),
+		Remote:    r.RemoteAddr,
+		UA:        r.Header.Get("User-Agent"),
+		Model:     model,
+		Stream:    stream,
+		Messages:  msgs,
+		Tools:     ntools,
+		MaxTokens: maxTokens,
+		BodyLen:   len(body),
+		BodySHA:   hex.EncodeToString(sum[:8]),
 	}
 	for _, k := range []string{"x-opencode-session", "x-opencode-session-id", "x-session-id",
 		"x-session-affinity", "x-opencode-project", "x-opencode-client", "x-opencode-request"} {
@@ -191,6 +205,17 @@ func finishRequest(r *http.Request, body []byte, dw *dumpWriter, start time.Time
 		rec.ErrHead = truncate(errHead, dumpErrHead)
 	}
 	ringAdd(rec)
+	// Full inbound bodies: the ring keeps only counts, so a client report like
+	// "the tools are cut" (2026-11-20: OMP saw 4 tools instead of 14) cannot be
+	// checked against what the client actually sent. One file per request, named
+	// ts-bodyhash, so a turn can be replayed or diffed against the body the
+	// router forwarded (AI_ROUTER_CLI_DUMP).
+	if dir := strings.TrimSpace(os.Getenv(dumpBodiesEnvVar)); dir != "" && len(body) > 0 && len(body) <= dumpBodyMax {
+		if err := os.MkdirAll(dir, 0o755); err == nil {
+			name := strings.ReplaceAll(rec.TS, ":", "-") + "-" + rec.BodySHA + ".json"
+			_ = os.WriteFile(filepath.Join(dir, name), body, 0o644)
+		}
+	}
 	dir, all := dumpConfig()
 	if dir == "" || (status >= 200 && status < 300 && !all) {
 		return

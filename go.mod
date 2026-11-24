@@ -5,7 +5,9 @@ go 1.24
 toolchain go1.26.5
 
 require (
+	github.com/andybalholm/brotli v1.0.6
 	github.com/energye/systray v1.0.3
+	github.com/klauspost/compress v1.17.4
 	github.com/refraction-networking/utls v1.8.2
 	github.com/wailsapp/wails/v2 v2.12.0
 	golang.org/x/crypto v0.41.0
@@ -16,7 +18,6 @@ require (
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
-	github.com/andybalholm/brotli v1.0.6 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -24,7 +25,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
-	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/labstack/echo/v4 v4.13.3 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leaanthony/go-ansi-parser v1.6.1 // indirect

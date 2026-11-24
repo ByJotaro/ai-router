@@ -279,6 +279,21 @@
             <div class="w01-bstriphost" id="w01-eg-bstrip"></div>
           </div>
           <div class="w01-nums" id="w01-eg-evline"></div>
+          <div class="w01-egbox" id="w01-eg-bypassbox">
+            <div class="w01-box-h">
+              <span class="w01-box-t">Аварийный перебор (вручную)</span>
+              <span class="w01-box-s" id="w01-bypass-meta">свежие IP → варианты UA и имён параметров</span>
+            </div>
+            <div class="w01-bypass-ctl">
+              <label>новых IP <input id="w01-bypass-n" type="number" min="1" max="5" value="3"></label>
+              <label title="по одному варианту на каждый параметр из последнего реального запроса (MITM)"><input type="checkbox" id="w01-bypass-all"> все параметры</label>
+              <button class="btn sm" type="button" id="w01-bypass-run">Перебрать</button>
+              <button class="btn sm ghost" type="button" id="w01-bypass-reset">Сброс</button>
+              <span class="w01-bypass-act" id="w01-bypass-act">текущие: —</span>
+            </div>
+            <div id="w01-bypass-rows" class="w01-bypass-rows"></div>
+            <div class="w01-note" id="w01-bypass-note">Свежие IP — перерисовка слотов main-пула (новый /64 на слот). Wide-каналы не трогаются. Применение — отдельной кнопкой, автоматики нет.</div>
+          </div>
           <div class="w01-note" id="w01-eg-note"></div>
           <div class="w01-state" id="w01-eg-state" hidden></div>
           <div class="w01-tip" id="w01-eg-tip"></div>
@@ -319,6 +334,7 @@
 <script src="./js/w01-core.js"></script>
 <script src="./js/w01-logs.js"></script>
 <script src="./js/w01-proxies.js"></script>
+<script src="./js/bypass.js"></script>
 <script src="./js/w01-settings.js"></script>
 <script src="./js/pcard.js"></script>
 <script src="./js/c08-card.js"></script>

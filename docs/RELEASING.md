@@ -85,6 +85,7 @@ git archive HEAD | tar -x -C $S          # только трекаемые фа�
 # внутренние материалы остаются в приватной копии:
 Remove-Item -Recurse -Force $S\docs\gui-audits
 Remove-Item $S\docs\pool-identity-recycle.md
+Remove-Item $S\docs\CUTOVER.md
 Remove-Item $S\.active, $S\extract_js.js
 cd $S
 git init -b main
@@ -107,6 +108,7 @@ gh repo edit ByJotaro/ai-router --add-topic openai,gateway,llm,wails,go
 
 - `docs/gui-audits/` — внутренние аудиты вкладок;
 - `docs/pool-identity-recycle.md` — измерительные заметки по транспортному пулу;
+- `docs/CUTOVER.md` — внутренний runbook с локальными путями и токенами;
 - рабочая мелочь вроде `.active`, `extract_js.js`;
 - реальные значения токенов (`admin_token`, `hub.token`) — в дереве только
   плейсхолдеры; e2e берёт токен из окружения.

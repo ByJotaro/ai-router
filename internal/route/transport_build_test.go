@@ -103,12 +103,12 @@ func TestBuildTransportOptionSelectsIPRotateTransport(t *testing.T) {
 			"opencode": {
 				BaseURL: "https://opencode.ai/zen/v1",
 				Transport: config.TransportConf{
-					Mode:       "iprotate",
-					Fanout:     5,
-					Rounds:     2,
-					CooldownS:  30,
+					Mode:        "iprotate",
+					Fanout:      5,
+					Rounds:      2,
+					CooldownS:   30,
 					ResolveTTLS: 60,
-					SeedIPs:    []string{"172.65.90.20"},
+					SeedIPs:     []string{"172.65.90.20"},
 				},
 			},
 		},
@@ -212,7 +212,7 @@ func TestBuildTransportStormCollapseOptOut(t *testing.T) {
 	off := false
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderConf{
-			"kilo": {Transport: config.TransportConf{Mode: "pool", APIURL: "http://127.0.0.1:9999", StormCollapse: &off}},
+			"kilo":  {Transport: config.TransportConf{Mode: "pool", APIURL: "http://127.0.0.1:9999", StormCollapse: &off}},
 			"other": {Transport: config.TransportConf{Mode: "pool", APIURL: "http://127.0.0.1:9999"}},
 		},
 	}

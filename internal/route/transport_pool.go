@@ -203,7 +203,7 @@ type PoolTransport struct {
 	// request budget after which an egress is treated as nearly spent.
 	winSamples []int
 	softBudget int
-	stormKeys     []stormHit    // те же хиты с привязкой к egress: single-IP завал vs shared шторм
+	stormKeys  []stormHit // те же хиты с привязкой к egress: single-IP завал vs shared шторм
 	// standby — очередь верифицированных egress (+1 поток verify): 429-хит
 	// ставит IP в очередь, воркер гоняет max_tokens=1 мимо горячего пути,
 	// 200 возвращает IP в ротацию СРАЗУ (notePrewarmLive + park/bad lift),
@@ -1111,13 +1111,13 @@ func (p *PoolTransport) rotateKeyFor(prov string) {
 // 2026-11-11: the captured 1.19.4/bun1.4.4 tuple became throttled by upstream
 // (429 FreeUsageLimitError on a clean IP while 1.19.5/bun1.4.0 and 1.19.4/bun1.4.0
 // returned 200). Pin to a known-good tuple and let provider.user_agent override.
-const defaultPinnedUAVersion = "1.19.5"
+const defaultPinnedUAVersion = "1.19.6"
 
 // The triple must be a tuple upstream accepts. 1.19.4+4.0.23+1.4.4 was a real
 // capture but is now rejected; 1.19.5+4.0.23+1.4.0 is accepted on clean IPs.
-const capturedUABuild = "1.19.5"
+const capturedUABuild = "1.19.6"
 const pinnedProviderUtils = "4.0.23"
-const pinnedBunRuntime = "1.4.0"
+const pinnedBunRuntime = "1.4.4"
 
 var pinnedUAVer atomic.Value // string
 var uaDriftWarned sync.Map   // version -> warned

@@ -288,13 +288,21 @@ func (p *Pool) pickLeastUsed(keys []*Key, now time.Time) *Key {
 
 // pickRoundRobin prefers the next non-rate-limited key. Assumes p.mu held.
 func (p *Pool) pickRoundRobin(keys []*Key, now time.Time) *Key {
-	for i := 0; i < len(p.keys); i++ {
-		cand := p.keys[(p.rr+i)%len(p.keys)]
-		if cand.Disabled {
-			continue
+	// Two passes: parked/rate-limited keys are skipped while an alternative
+	// exists (the documented contract); the second pass keeps the pool alive
+	// when everything is parked.
+	for pass := 0; pass < 2; pass++ {
+		for i := 0; i < len(p.keys); i++ {
+			cand := p.keys[(p.rr+i)%len(p.keys)]
+			if cand.Disabled {
+				continue
+			}
+			if pass == 0 && now.Before(cand.RateLimitedUntil) {
+				continue
+			}
+			p.rr = (p.rr + i + 1) % len(p.keys)
+			return cand
 		}
-		p.rr = (p.rr + i + 1) % len(p.keys)
-		return cand
 	}
 	// All disabled — degraded: re-enable the one disabled soonest.
 	var best *Key
@@ -342,6 +350,27 @@ func (p *Pool) Report(k *Key, status int, retryAfter string) {
 		// 4xx (bad request, model not found, etc.) is a request problem,
 		// not a key problem — do not penalise the key.
 	}
+}
+
+// Park soft-cooldowns a key without counting a failure. Use it for verdicts
+// about the key's exit rather than a rate event: a 403 region_error or an
+// account benefit restriction (inferway 1 key = 1 egress IP) must stop the
+// next request from re-uploading its whole body to the same dead lane and
+// hopping away again, yet must not brick the key (RateLimitedUntil only —
+// Failures and Disabled stay untouched). While healthy alternatives exist
+// Pick skips a parked key; round-robin now honours that too.
+func (p *Pool) Park(k *Key, d time.Duration, reason string) {
+	if k == nil || d <= 0 {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	until := time.Now().Add(d)
+	if k.RateLimitedUntil.Before(until) {
+		k.RateLimitedUntil = until
+	}
+	k.LastErr = reason
+	p.persistLocked(k)
 }
 
 // backoffLocked computes the cooldown duration: upstream Retry-After when

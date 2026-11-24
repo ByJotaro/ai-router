@@ -770,8 +770,8 @@ let lastHealAt = 0;
 let lastWallLogAt = 0;
 
 // The daemon restart rung deliberately does NOT live here: WarpPoolWatcher
-// (scheduled task, every 5 min, C:/tmp/warp_pool_watcher.py) already restarts
-// warp-router after two dead samples (~10 min) via C:/tmp/restart_warp.ps1, at
+// (a scheduled task, every 5 min, warp_pool_watcher.py) already restarts
+// warp-router after two dead samples (~10 min) via restart_warp.ps1, at
 // most once per 30 min. A second restarter fires on the same condition with a
 // different script and the two kill each other's daemon mid-warmup, stretching
 // the outage instead of ending it. The sidecar only rebuilds the POOL inside a

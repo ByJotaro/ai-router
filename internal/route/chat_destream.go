@@ -89,14 +89,14 @@ func (b *chatDestreamBody) closeUpstream() error {
 // instead of an empty completion.
 func aggregateChatSSE(r io.Reader, model string) ([]byte, error) {
 	var (
-		id      string
-		created int64
-		mdl     string
-		content strings.Builder
-		reason  strings.Builder
+		id       string
+		created  int64
+		mdl      string
+		content  strings.Builder
+		reason   strings.Builder
 		finish   string
-	terminal bool
-		usage   json.RawMessage
+		terminal bool
+		usage    json.RawMessage
 	)
 	type call struct {
 		ID   string `json:"id"`
@@ -238,8 +238,17 @@ func aggregateChatSSE(r io.Reader, model string) ([]byte, error) {
 	}
 	if len(order) > 0 {
 		list := make([]any, 0, len(order))
+		truncated := false
 		for _, idx := range order {
 			c := calls[idx]
+			// A max_tokens cut leaves unterminated arguments: shipping them as a
+			// completed call hands the client unparseable JSON. The SSE path
+			// reports such a cut as finish_reason=length (stream.go
+			// synthesizeFinal); the destream aggregator must not claim more.
+			if c.Fn.Args != "" && !json.Valid([]byte(c.Fn.Args)) {
+				truncated = true
+				continue
+			}
 			if c.ID == "" {
 				c.ID = "call_" + itoa(idx)
 			}
@@ -255,7 +264,11 @@ func aggregateChatSSE(r io.Reader, model string) ([]byte, error) {
 				},
 			})
 		}
-		msg["tool_calls"] = list
+		if len(list) > 0 {
+			msg["tool_calls"] = list
+		} else if truncated && finish == "tool_calls" {
+			finish = "length"
+		}
 	}
 	out := map[string]any{
 		"id":      id,

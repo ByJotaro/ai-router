@@ -120,17 +120,21 @@ func TestFree429SwapsSessionInRequest(t *testing.T) {
 	_, deadSecond := sp.dead[sids[1]]
 	deadCount := len(sp.dead)
 	sp.mu.Unlock()
-	if !deadFirst {
-		t.Fatalf("the 429 id %q must be retired so no other conversation inherits it", sids[0])
+	// A 429 (free usage limit) is the egress/window's verdict, not the id's:
+	// the id must stay in rotation (retiring it on every egress 429 emptied
+	// the pool and the router fabricated ids, a guaranteed gate rejection),
+	// while the retry must still not reuse it on this key.
+	if deadFirst {
+		t.Fatalf("the 429 id %q must be released, not retired", sids[0])
 	}
 	if deadSecond {
 		t.Fatal("the id that answered 200 must stay live")
 	}
-	if deadCount != 1 {
-		t.Fatalf("dead ids = %d, want exactly the one that answered 429", deadCount)
+	if deadCount != 0 {
+		t.Fatalf("dead ids = %d, want 0 after an egress-window 429", deadCount)
 	}
-	if live := sp.LiveCount(); live != 2 {
-		t.Fatalf("live ids = %d, want 2 of the 3 seeded", live)
+	if live := sp.LiveCount(); live != 3 {
+		t.Fatalf("live ids = %d, want all 3 seeded ids kept", live)
 	}
 	if fallbacks != 0 {
 		t.Fatalf("ai.fallback fired %d times for an internal swap, want 0", fallbacks)
@@ -169,16 +173,13 @@ func TestFree429SwapIsBounded(t *testing.T) {
 	if len(sids) != 6 {
 		t.Fatalf("upstream calls = %d, want 6 (4 attempts + 2 swaps)", len(sids))
 	}
-	seen := map[string]bool{}
-	for _, s := range sids {
-		seen[s] = true
-	}
-	if len(seen) < 3 {
-		t.Fatalf("distinct ids touched = %d (%v), want at least 3 (one per swap)", len(seen), seen)
-	}
-	for _, id := range []string{idA, idB} {
+	seen := map[string]bool{idA: true, idB: true, idC: true}
+	for i, id := range sids {
 		if !seen[id] {
-			t.Fatalf("swap did not reach %q: %v", id, seen)
+			t.Fatalf("wire id %q is not one of the seeded sessions: %v", id, sids)
+		}
+		if i > 0 && sids[i-1] == id {
+			t.Fatalf("swap %d reused the same id %q (a released id must not be re-pinned on this key)", i, id)
 		}
 	}
 }
